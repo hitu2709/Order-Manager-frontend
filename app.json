@@ -5,12 +5,30 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "backgroundColor": "#0047AB"
+    },
     "android": {
-      "package": "com.yourcompany.ordermanager"
+      "package": "com.hitu2709.ordermanager",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0047AB"
+      },
+      "permissions": ["CAMERA"],
+      "usesCleartextTraffic": true
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.ordermanager"
-    }
+      "bundleIdentifier": "com.hitu2709.ordermanager"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Order Manager to access your camera for barcode scanning."
+        }
+      ]
+    ]
   }
 }
