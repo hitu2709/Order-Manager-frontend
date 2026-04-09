@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Find your IP: run "ipconfig" in Windows CMD → look for IPv4 Address
 // Example: 'http://192.168.1.100:3000'
 // ─────────────────────────────────────────────────────────────────────────────
-const BASE_URL = 'http://192.168.1.111:3000'; // Updated to match current Local IP
+const BASE_URL = 'https://order-manager-backend-5.onrender.com'; // Point to live Render backend
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
