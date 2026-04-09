@@ -15,11 +15,7 @@
       "adaptiveIcon": {
         "backgroundColor": "#0047AB"
       },
-      "permissions": [
-        "CAMERA",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
-      ],
+      "permissions": ["CAMERA"],
       "usesCleartextTraffic": true
     },
     "ios": {
