@@ -299,7 +299,19 @@ export default function DashboardScreen({ navigation }) {
 
                 <View style={styles.summaryPriceSection}>
                   <Text style={styles.summaryPriceLabel}>Total Amount</Text>
-                  <Text style={styles.summaryPriceValue}>Rs. {parseFloat(selectedOrder.TotalAmount).toFixed(0)}</Text>
+                  <Text style={styles.summaryPriceValue}>
+                    Rs. {(() => {
+                      const amt = parseFloat(selectedOrder.TotalAmount);
+                      if (!isNaN(amt) && amt > 0) return amt.toFixed(0);
+                      
+                      // Fallback: calculate from items
+                      const calculated = (selectedOrder.products || []).reduce((sum, p) => {
+                        const val = parseFloat(p.TotalPrice || (p.Quantity * p.UnitPrice) || 0);
+                        return sum + (isNaN(val) ? 0 : val);
+                      }, 0);
+                      return calculated.toFixed(0);
+                    })()}
+                  </Text>
                 </View>
 
                 <View style={styles.summaryMetaRow}>

@@ -298,7 +298,7 @@ export default function CreateOrderScreen({ navigation, route }) {
         rate: String(p.UnitPrice),
         discount: String(p.Discount || 0),
         discountPercent: String(p.DiscountPercent || 0),
-        amount: String(p.TotalPrice),
+        amount: String(p.TotalPrice || (parseFloat(p.Quantity || 0) * parseFloat(p.UnitPrice || 0)) || "0"),
         imagePath: null, // We don't have this from the list query usually
       }));
       setProductsList(mappedProducts);
