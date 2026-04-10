@@ -209,12 +209,29 @@ export default function CreateOrderScreen({ navigation, route }) {
   useEffect(() => {
     loadData();
     if (isEditMode && editOrder) {
-      // Pre-populate directly available fields
+      // Pre-populate directly available fields instantly
       setOrderNo(String(editOrder.OrderID));
       setTransport(editOrder.Transport || "");
-      setNotes(editOrder.SpNote || editOrder.Notes || ""); // Handle both possible names
+      setNotes(editOrder.SpNote || editOrder.Notes || ""); 
       
-      // Party and Salesman will be matched in separate effects once data is loaded
+      // Instantly set Party to avoid the 5-7 sec wait
+      if (editOrder.CustomerName) {
+        setSelectedParty({
+          PartyName: editOrder.CustomerName,
+          PartyID: editOrder.client_code,
+          ac_name: editOrder.CustomerName,
+          ac_code: editOrder.client_code
+        });
+      }
+      
+      // Instantly set Salesman to fix 'salesman name is not coming'
+      if (editOrder.SalesmanName) {
+        setSelectedSalesman({
+          ac_name: editOrder.SalesmanName,
+          ac_code: editOrder.SalesmanCode,
+          SalesmanID: editOrder.SalesmanCode
+        });
+      }
     }
   }, [editOrder]);
 
