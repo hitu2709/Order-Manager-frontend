@@ -163,6 +163,8 @@ export default function CreateOrderScreen({ navigation, route }) {
   const [showSalesmanModal, setShowSalesmanModal] = useState(false);
   const [showAdjModal, setShowAdjModal] = useState(false);
 
+
+
   // QR/Barcode Scanner
   const [showScanner, setShowScanner] = useState(false);
   const [scanned, setScanned] = useState(false);
@@ -208,13 +210,16 @@ export default function CreateOrderScreen({ navigation, route }) {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
     if (isEditMode && editOrder) {
-      // Pre-populate directly available fields instantly
+      // 1. Basic pre-population (Transport, Notes)
       setOrderNo(String(editOrder.OrderID));
       setTransport(editOrder.Transport || "");
-      setNotes(editOrder.SpNote || editOrder.Notes || ""); 
+      setNotes(editOrder.Sp_Note || editOrder.SpNote || editOrder.Notes || ""); 
       
-      // Instantly set Party to avoid the 5-7 sec wait
+      // 2. Set Party
       if (editOrder.CustomerName) {
         setSelectedParty({
           PartyName: editOrder.CustomerName,
@@ -224,16 +229,27 @@ export default function CreateOrderScreen({ navigation, route }) {
         });
       }
       
-      // Instantly set Salesman to fix 'salesman name is not coming'
-      if (editOrder.SalesmanName) {
+      // 3. Set Salesman (Try multiple sources)
+      const sName = editOrder.SalesmanName || editOrder.salesmanName || editOrder.broker_name;
+      const sCode = editOrder.SalesmanCode || editOrder.salesmanCode || editOrder.brokerCode || editOrder.Broker_code || editOrder.Broker_Code;
+      
+      if (sName && sName !== 'Missing Name' && sName !== 'null') {
         setSelectedSalesman({
-          ac_name: editOrder.SalesmanName,
-          ac_code: editOrder.SalesmanCode,
-          SalesmanID: editOrder.SalesmanCode
+          ac_name: sName,
+          ac_code: sCode || "",
+          SalesmanID: sCode || ""
         });
+      } else if (sCode && salesmenData.length > 0) {
+        // RECOVERY: If name is missing but we have a code, find it in the list!
+        const found = salesmenData.find(s => 
+          String(s.ac_code).trim().toLowerCase() === String(sCode).trim().toLowerCase()
+        );
+        if (found) {
+          setSelectedSalesman(found);
+        }
       }
     }
-  }, [editOrder]);
+  }, [editOrder, salesmenData]);
 
   // Match selected party once parties are loaded
   useEffect(() => {
@@ -249,14 +265,25 @@ export default function CreateOrderScreen({ navigation, route }) {
   // Match selected salesman once salesmen are loaded
   useEffect(() => {
     if (isEditMode && editOrder && salesmenData.length > 0) {
-      console.log('Matching Salesman for order:', editOrder.OrderID, 'SalesmanCode:', editOrder.SalesmanCode, 'SalesmanName:', editOrder.SalesmanName);
-      const matchedSalesman = salesmenData.find(s => 
-        (editOrder.SalesmanCode && (String(s.ac_code) === String(editOrder.SalesmanCode) || String(s.SalesmanID) === String(editOrder.SalesmanCode))) ||
-        (s.ac_name && editOrder.SalesmanName && String(s.ac_name).trim() === String(editOrder.SalesmanName).trim())
-      );
+      const searchCode = String(editOrder.SalesmanCode || "").trim();
+      const searchName = String(editOrder.SalesmanName || "").trim();
+
+      const matchedSalesman = salesmenData.find(s => {
+        const itemCode = String(s.ac_code || "").trim();
+        const itemName = String(s.ac_name || "").trim();
+        return (searchCode && itemCode === searchCode) || 
+               (searchName && itemName === searchName);
+      });
+
       if (matchedSalesman) {
-        console.log('Matched Salesman:', matchedSalesman.ac_name);
         setSelectedSalesman(matchedSalesman);
+      } else if (editOrder.SalesmanName || editOrder.SalesmanCode) {
+        // Fallback: Use the data directly from editOrder if not found in the full list
+        setSelectedSalesman({
+          ac_name: editOrder.SalesmanName || editOrder.SalesmanCode || "Selected Salesman",
+          ac_code: editOrder.SalesmanCode || "",
+          isFallback: true
+        });
       }
     }
   }, [salesmenData, editOrder]);
