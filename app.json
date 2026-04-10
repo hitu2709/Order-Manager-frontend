@@ -15,7 +15,14 @@
       "adaptiveIcon": {
         "backgroundColor": "#0047AB"
       },
-      "permissions": ["CAMERA"],
+      "permissions": [
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
       "usesCleartextTraffic": true
     },
     "ios": {
@@ -35,6 +42,12 @@
         "projectId": "e1061305-c25b-4a83-9124-36c41e1c4a52"
       }
     },
-    "owner": "hitu270905"
+    "owner": "hitu270905",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e1061305-c25b-4a83-9124-36c41e1c4a52"
+    }
   }
 }
