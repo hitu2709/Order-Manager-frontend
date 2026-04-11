@@ -685,6 +685,14 @@ export default function CreateOrderScreen({ navigation, route }) {
         onSelect={(p) => { 
           setSelectedParty(p); 
           setShowPartyModal(false); 
+          
+          // Auto-fill transport detail from the party's database record
+          if (p.Transport) {
+            setTransport(p.Transport);
+          } else {
+            setTransport(""); // Clear if no transport found
+          }
+
           if (p.Category === 'A') {
             setDiscountPercent("0");
           } else if (p.Category === 'B') {
