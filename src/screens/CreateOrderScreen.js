@@ -73,7 +73,7 @@ const InputField = ({
 const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placeholder, isProduct = false, hideCode = false }) => {
   const [search, setSearch] = useState("");
   const filtered = data.filter(item => 
-    (item.partyName || item.PartyName || item.productName || item.ProductName || item.itemCode || item.ItemCode || item.ac_name || "").toLowerCase().includes(search.toLowerCase())
+    (item.PartyName || item.ProductName || item.ItemCode || item.ac_name || "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -116,9 +116,9 @@ const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placehold
                   // Party / Salesman row
                   <View style={styles.listItemGrid}>
                     <View style={styles.flex1}>
-                      <Text style={styles.listItemText}>{item.partyName || item.PartyName || item.ac_name || 'N/A'}</Text>
-                      {(item.partyId || item.ac_code) && (
-                        <Text style={styles.listItemSubText}>{item.partyId || item.ac_code}</Text>
+                      <Text style={styles.listItemText}>{item.PartyName || item.ac_name || 'N/A'}</Text>
+                      {item.ac_code && (
+                        <Text style={styles.listItemSubText}>{item.ac_code}</Text>
                       )}
                     </View>
                   </View>
@@ -480,14 +480,14 @@ export default function CreateOrderScreen({ navigation, route }) {
           <FieldLabel label="Party" />
           <TouchableOpacity style={styles.dropdown} activeOpacity={0.8} onPress={() => setShowPartyModal(true)}>
             <Text style={selectedParty ? styles.dropdownValue : styles.dropdownPlaceholder}>
-              {selectedParty ? (selectedParty.partyName || selectedParty.PartyName) : "Select a Party"}
+              {selectedParty ? selectedParty.PartyName : "Select a Party"}
             </Text>
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
           <FieldLabel label="CATEGORY" />
           <View style={styles.categoryBadge}>
-            <Text style={styles.categoryText}>{selectedParty?.category || selectedParty?.Category || "Select a party above"}</Text>
+            <Text style={styles.categoryText}>{selectedParty?.Category || "Select a party above"}</Text>
           </View>
 
           <FieldLabel label="Transport" />
@@ -686,18 +686,16 @@ export default function CreateOrderScreen({ navigation, route }) {
           setSelectedParty(p); 
           setShowPartyModal(false); 
           
-          // Auto-fill transport detail from the party's database record (using lowercase from backend)
-          const transportVal = p.transport || p.Transport;
-          if (transportVal) {
-            setTransport(transportVal);
+          // Auto-fill transport detail from the party's database record
+          if (p.Transport) {
+            setTransport(p.Transport);
           } else {
             setTransport(""); // Clear if no transport found
           }
 
-          const cat = p.category || p.Category;
-          if (cat === 'A') {
+          if (p.Category === 'A') {
             setDiscountPercent("0");
-          } else if (cat === 'B') {
+          } else if (p.Category === 'B') {
             setDiscountPercent(String(p.discper || 0));
           }
         }}
