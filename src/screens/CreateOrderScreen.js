@@ -73,7 +73,7 @@ const InputField = ({
 const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placeholder, isProduct = false, hideCode = false }) => {
   const [search, setSearch] = useState("");
   const filtered = data.filter(item => 
-    (item.PartyName || item.ProductName || item.ItemCode || item.ac_name || "").toLowerCase().includes(search.toLowerCase())
+    (item.partyName || item.PartyName || item.productName || item.ProductName || item.itemCode || item.ItemCode || item.ac_name || "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (
