@@ -155,6 +155,7 @@ export default function CreateOrderScreen({ navigation, route }) {
   const [qty, setQty] = useState("");
   const [rate, setRate] = useState("");
   const [discountPercent, setDiscountPercent] = useState("0");
+  const [remark, setRemark] = useState("");
   const [productsList, setProductsList] = useState([]);
 
   // Modals
@@ -299,6 +300,7 @@ export default function CreateOrderScreen({ navigation, route }) {
         discount: String(p.Discount || 0),
         discountPercent: String(p.DiscountPercent || 0),
         amount: String(p.TotalPrice || (parseFloat(p.Quantity || 0) * parseFloat(p.UnitPrice || 0)) || "0"),
+        remark: p.Description || p.remark || "",
         imagePath: null, // We don't have this from the list query usually
       }));
       setProductsList(mappedProducts);
@@ -354,6 +356,7 @@ export default function CreateOrderScreen({ navigation, route }) {
       discount: isNaN(discAmt) ? "0.00" : discAmt.toFixed(2),
       discountPercent: discountPercent,
       amount: currentAmount,
+      remark: remark,
       imagePath: selectedProduct.ImagePath,
     };
 
@@ -362,6 +365,7 @@ export default function CreateOrderScreen({ navigation, route }) {
     setQty("");
     setRate("");
     setDiscountPercent("0");
+    setRemark("");
   };
 
   const handleRemoveProduct = (index) => {
@@ -403,7 +407,8 @@ export default function CreateOrderScreen({ navigation, route }) {
         quantity: parseInt(p.qty),
         unitPrice: parseFloat(p.rate),
         discount: parseFloat(p.discount),
-        discountPercent: parseFloat(p.discountPercent)
+        discountPercent: parseFloat(p.discountPercent),
+        remark: p.remark || ""
       }));
 
       const payload = {
@@ -561,7 +566,14 @@ export default function CreateOrderScreen({ navigation, route }) {
                   )}
                 </View>
 
-                {/* Row 3: Divider and Actions */}
+                {/* Row 3: Remark */}
+                {!!item.remark && (
+                  <View style={{ marginTop: 6, backgroundColor: '#fffde7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                    <Text style={{ fontSize: 11, color: '#6d4c41', fontStyle: 'italic' }}>📝 {item.remark}</Text>
+                  </View>
+                )}
+
+                {/* Row 4: Divider and Actions */}
                 <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f0f2f5', gap: 10 }}>
                   <TouchableOpacity onPress={() => handleEditProduct(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff3e0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
                     <Text style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold' }}>✏️ Edit</Text>
@@ -650,6 +662,16 @@ export default function CreateOrderScreen({ navigation, route }) {
               <TextInput style={[styles.input, { backgroundColor: '#e8f5e9' }]} value={calculateAmount()} editable={false} />
             </View>
           </View>
+
+          <FieldLabel label="PRODUCT REMARK" />
+          <TextInput
+            style={[styles.input, { height: 70, textAlignVertical: 'top', paddingTop: 10 }]}
+            placeholder="Type any remarks for this product..."
+            value={remark}
+            onChangeText={setRemark}
+            multiline={true}
+            numberOfLines={3}
+          />
 
           <TouchableOpacity style={styles.addProductBtn} onPress={handleAddProduct}>
             <Icon name="plus" size={16} color="#1565C0" />
