@@ -222,7 +222,7 @@ export default function DashboardScreen({ navigation }) {
                     {order.CustomerName || 'Walk-in'}
                   </Text>
                   <View style={styles.balQtyBadge}>
-                    <Text style={styles.balQtyText}>QTY {order.BalQty || 0}</Text>
+                    <Text style={styles.balQtyText}>QTY {order.Qty || order.BalQty || 0}</Text>
                   </View>
                 </View>
 
