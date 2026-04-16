@@ -16,6 +16,7 @@ import {
   Animated,
   Dimensions,
   Platform,
+  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -40,6 +41,7 @@ export default function DashboardScreen({ navigation }) {
   const [viewModalVisible, setViewModalVisible] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [searchText, setSearchText] = useState('');
   
   // Animation for side menu
   const drawerWidth = Dimensions.get('window').width * 0.75;
@@ -208,8 +210,34 @@ export default function DashboardScreen({ navigation }) {
         {/* Recent Orders Section */}
         <View style={styles.ordersSection}>
           <Text style={styles.sectionTitle}>Recent Orders</Text>
-          {recentOrders.length > 0 ? (
-            recentOrders.map((order) => (
+
+          {/* Search Bar */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f4f8', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10 }}>
+            <Text style={{ fontSize: 14, marginRight: 8, color: '#90a4ae' }}>🔍</Text>
+            <TextInput
+              style={{ flex: 1, fontSize: 14, color: '#263238', padding: 0 }}
+              placeholder="Search by party or order no..."
+              placeholderTextColor="#90a4ae"
+              value={searchText}
+              onChangeText={setSearchText}
+            />
+            {searchText.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchText('')}>
+                <Text style={{ fontSize: 16, color: '#90a4ae' }}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {recentOrders.filter(o =>
+            !searchText ||
+            (o.CustomerName || '').toLowerCase().includes(searchText.toLowerCase()) ||
+            String(o.SaleOrderNo || '').includes(searchText)
+          ).length > 0 ? (
+            recentOrders.filter(o =>
+              !searchText ||
+              (o.CustomerName || '').toLowerCase().includes(searchText.toLowerCase()) ||
+              String(o.SaleOrderNo || '').includes(searchText)
+            ).map((order) => (
               <TouchableOpacity 
                 key={order.OrderID || Math.random().toString()} 
                 style={styles.premiumOrderCard}
@@ -242,7 +270,7 @@ export default function DashboardScreen({ navigation }) {
             ))
           ) : (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>No recent orders found</Text>
+              <Text style={styles.emptyText}>{searchText ? 'No orders match your search' : 'No pending orders found'}</Text>
             </View>
           )}
         </View>

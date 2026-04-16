@@ -103,14 +103,14 @@ const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placehold
                 onPress={() => { onSelect(item); setSearch(""); }}
               >
                 {isProduct ? (
-                  // Clean product row: code badge + name
+                  // Product row: name first, code as small badge below
                   <View style={{ paddingVertical: 2 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={[styles.listItemText, { marginBottom: 4 }]} numberOfLines={2}>{item.ProductName || 'N/A'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <View style={{ backgroundColor: '#EEF2FF', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 4 }}>
                         <Text style={{ fontSize: 11, fontWeight: '700', color: '#4F46E5' }}>{item.ItemCode || '—'}</Text>
                       </View>
                     </View>
-                    <Text style={[styles.listItemText, { marginBottom: 0 }]} numberOfLines={2}>{item.ProductName || 'N/A'}</Text>
                   </View>
                 ) : (
                   // Party / Salesman row
@@ -301,7 +301,7 @@ export default function CreateOrderScreen({ navigation, route }) {
         discountPercent: String(p.DiscountPercent || 0),
         amount: String(p.TotalPrice || (parseFloat(p.Quantity || 0) * parseFloat(p.UnitPrice || 0)) || "0"),
         remark: p.Description || p.remark || "",
-        imagePath: null, // We don't have this from the list query usually
+        imagePath: null,
       }));
       setProductsList(mappedProducts);
     }
@@ -385,6 +385,7 @@ export default function CreateOrderScreen({ navigation, route }) {
     setQty(item.qty);
     setRate(item.rate);
     setDiscountPercent(item.discountPercent);
+    setRemark(item.remark || "");
 
     // Remove from list so they can re-add it updated
     handleRemoveProduct(index);
@@ -560,7 +561,7 @@ export default function CreateOrderScreen({ navigation, route }) {
                   {parseFloat(item.discountPercent) > 0 && (
                     <View style={{ backgroundColor: '#e8f5e9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                       <Text style={{ fontSize: 11, color: '#2e7d32', fontWeight: '700' }}>
-                        -{item.discountPercent}%
+                        -{item.discountPercent}% (₹{parseFloat(item.discount || 0).toFixed(2)})
                       </Text>
                     </View>
                   )}
