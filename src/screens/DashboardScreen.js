@@ -373,20 +373,24 @@ export default function DashboardScreen({ navigation }) {
 
               {/* Items Table Header */}
               <View style={styles.itemsTableHeader}>
-                <Text style={[styles.tableHeadText, { flex: 0.20 }]}>CODE</Text>
-                <Text style={[styles.tableHeadText, { flex: 0.30 }]}>NAME</Text>
-                <Text style={[styles.tableHeadText, { flex: 0.15, textAlign: 'center' }]}>QTY</Text>
-                <Text style={[styles.tableHeadText, { flex: 0.17, textAlign: 'right' }]}>RATE</Text>
-                <Text style={[styles.tableHeadText, { flex: 0.18, textAlign: 'right' }]}>AMT</Text>
+                <Text style={[styles.tableHeadText, { flex: 0.18 }]}>CODE</Text>
+                <Text style={[styles.tableHeadText, { flex: 0.28 }]}>NAME</Text>
+                <Text style={[styles.tableHeadText, { flex: 0.12, textAlign: 'center' }]}>QTY</Text>
+                <Text style={[styles.tableHeadText, { flex: 0.14, textAlign: 'right' }]}>RATE</Text>
+                <Text style={[styles.tableHeadText, { flex: 0.13, textAlign: 'right' }]}>DISC</Text>
+                <Text style={[styles.tableHeadText, { flex: 0.15, textAlign: 'right' }]}>AMT</Text>
               </View>
 
               {selectedOrder.products?.map((p, idx) => (
                 <View key={idx} style={styles.itemTableRow}>
-                   <Text style={[styles.tableCellText, { flex: 0.20, fontWeight: '700' }]} numberOfLines={1}>{p.ItemCode}</Text>
-                   <Text style={[styles.tableCellText, { flex: 0.30, fontWeight: '700' }]} numberOfLines={2}>{p.ProductName}</Text>
-                   <Text style={[styles.tableCellText, { flex: 0.15, textAlign: 'center' }]}>{p.Quantity}</Text>
-                   <Text style={[styles.tableCellText, { flex: 0.17, textAlign: 'right' }]}>{parseFloat(p.UnitPrice).toFixed(0)}</Text>
-                   <Text style={[styles.tableCellText, { flex: 0.18, textAlign: 'right', fontWeight: '800' }]}>{parseFloat(p.TotalPrice).toFixed(0)}</Text>
+                   <Text style={[styles.tableCellText, { flex: 0.18, fontWeight: '700' }]} numberOfLines={1}>{p.ItemCode}</Text>
+                   <Text style={[styles.tableCellText, { flex: 0.28, fontWeight: '700' }]} numberOfLines={2}>{p.ProductName}</Text>
+                   <Text style={[styles.tableCellText, { flex: 0.12, textAlign: 'center' }]}>{p.Quantity}</Text>
+                   <Text style={[styles.tableCellText, { flex: 0.14, textAlign: 'right' }]}>{parseFloat(p.UnitPrice).toFixed(0)}</Text>
+                   <Text style={[styles.tableCellText, { flex: 0.13, textAlign: 'right', color: '#2e7d32' }]}>
+                     {p.Discount > 0 ? `${((p.Discount / (p.Quantity * p.UnitPrice)) * 100).toFixed(0)}%` : '-'}
+                   </Text>
+                   <Text style={[styles.tableCellText, { flex: 0.15, textAlign: 'right', fontWeight: '800' }]}>{parseFloat(p.TotalPrice).toFixed(0)}</Text>
                 </View>
               ))}
 

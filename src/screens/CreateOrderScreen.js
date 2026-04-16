@@ -72,9 +72,13 @@ const InputField = ({
 
 const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placeholder, isProduct = false, hideCode = false }) => {
   const [search, setSearch] = useState("");
-  const filtered = data.filter(item => 
-    (item.PartyName || item.ProductName || item.ItemCode || item.ac_name || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = data.filter(item => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    const name = (item.PartyName || item.ProductName || item.ac_name || "").toLowerCase();
+    const code = (item.ItemCode || item.ac_code || "").toLowerCase();
+    return name.includes(s) || code.includes(s);
+  });
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true}>
@@ -168,6 +172,8 @@ export default function CreateOrderScreen({ navigation, route }) {
 
   // QR/Barcode Scanner
   const [showScanner, setShowScanner] = useState(false);
+  const scrollRef = React.useRef(null);
+  const productSectionY = React.useRef(0);
   const [scanned, setScanned] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -218,7 +224,7 @@ export default function CreateOrderScreen({ navigation, route }) {
       // 1. Basic pre-population (Transport, Notes)
       setOrderNo(String(editOrder.OrderID));
       setTransport(editOrder.Transport || "");
-      setNotes(editOrder.Sp_Note || editOrder.SpNote || editOrder.Notes || ""); 
+      setNotes(editOrder.Notes || editOrder.Sp_Note || editOrder.SpNote || editOrder.notes || "");
       
       // 2. Set Party
       if (editOrder.CustomerName) {
@@ -298,7 +304,11 @@ export default function CreateOrderScreen({ navigation, route }) {
         unit: p.Unit || "",
         rate: String(p.UnitPrice),
         discount: String(p.Discount || 0),
-        discountPercent: String(p.DiscountPercent || 0),
+        discountPercent: (() => {
+          const discAmt = parseFloat(p.Discount || 0);
+          const total = parseFloat(p.UnitPrice || 0) * parseFloat(p.Quantity || 0);
+          return total > 0 ? String(((discAmt / total) * 100).toFixed(2)) : "0";
+        })(),
         amount: String(p.TotalPrice || (parseFloat(p.Quantity || 0) * parseFloat(p.UnitPrice || 0)) || "0"),
         remark: p.Description || p.remark || "",
         imagePath: null,
@@ -389,6 +399,11 @@ export default function CreateOrderScreen({ navigation, route }) {
 
     // Remove from list so they can re-add it updated
     handleRemoveProduct(index);
+
+    // Scroll to Product Details form
+    setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: productSectionY.current - 20, animated: true });
+    }, 150);
   };
 
   const handleConfirmOrder = async () => {
@@ -458,6 +473,7 @@ export default function CreateOrderScreen({ navigation, route }) {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -588,7 +604,7 @@ export default function CreateOrderScreen({ navigation, route }) {
           </SectionCard>
         )}
 
-        <SectionCard style={{ marginTop: 12 }}>
+        <SectionCard style={{ marginTop: 12 }} onLayout={(e) => { productSectionY.current = e.nativeEvent.layout.y; }}>
           <View style={styles.sectionHeader}>
             <Icon name="product" size={16} color="#0056b3" />
             <Text style={styles.sectionTitle}>Product Details</Text>
