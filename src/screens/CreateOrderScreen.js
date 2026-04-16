@@ -174,6 +174,10 @@ export default function CreateOrderScreen({ navigation, route }) {
   const [showScanner, setShowScanner] = useState(false);
   const scrollRef = React.useRef(null);
   const productSectionY = React.useRef(0);
+
+  // Inline product editing
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [inlineEditItem, setInlineEditItem] = useState({ qty: '', rate: '', discountPercent: '', remark: '' });
   const [scanned, setScanned] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -384,26 +388,46 @@ export default function CreateOrderScreen({ navigation, route }) {
     setProductsList(updated);
   };
 
-  const handleEditProduct = (index) => {
-    const item = productsList[index];
-    setSelectedProduct({
-      ProductName: item.productName,
-      ItemCode: item.itemCode,
-      Unit: item.unit,
-      ImagePath: item.imagePath,
+  // Open inline edit for a specific cart item
+  const handleInlineEdit = (idx) => {
+    const item = productsList[idx];
+    setEditingIndex(editingIndex === idx ? null : idx); // toggle
+    setInlineEditItem({
+      qty: String(item.qty),
+      rate: String(item.rate),
+      discountPercent: String(item.discountPercent || '0'),
+      remark: item.remark || '',
     });
-    setQty(item.qty);
-    setRate(item.rate);
-    setDiscountPercent(item.discountPercent);
-    setRemark(item.remark || "");
+  };
 
-    // Remove from list so they can re-add it updated
-    handleRemoveProduct(index);
+  // Calculate amount from inline edit fields
+  const calcInlineAmount = () => {
+    const q = parseFloat(inlineEditItem.qty) || 0;
+    const r = parseFloat(inlineEditItem.rate) || 0;
+    const d = parseFloat(inlineEditItem.discountPercent) || 0;
+    const base = q * r;
+    return (base - base * (d / 100)).toFixed(2);
+  };
 
-    // Scroll to Product Details form
-    setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: productSectionY.current - 20, animated: true });
-    }, 150);
+  // Save inline edit back into the list in-place
+  const handleInlineUpdate = (idx) => {
+    const q = parseFloat(inlineEditItem.qty) || 0;
+    const r = parseFloat(inlineEditItem.rate) || 0;
+    const d = parseFloat(inlineEditItem.discountPercent) || 0;
+    const base = q * r;
+    const disc = base * (d / 100);
+    const updated = [...productsList];
+    updated[idx] = {
+      ...updated[idx],
+      qty: String(q),
+      rate: String(r),
+      discountPercent: String(d),
+      discount: disc.toFixed(2),
+      amount: (base - disc).toFixed(2),
+      remark: inlineEditItem.remark,
+    };
+    setProductsList(updated);
+    setEditingIndex(null);
   };
 
   const handleConfirmOrder = async () => {
@@ -652,7 +676,7 @@ export default function CreateOrderScreen({ navigation, route }) {
           <SectionCard style={{ marginTop: 12 }}>
             <Text style={styles.sectionTitle}>Items Details ({productsList.length})</Text>
             {productsList.map((item, idx) => (
-              <View key={idx} style={{ backgroundColor: '#fafcff', borderWidth: 1, borderColor: '#e0e7ef', borderRadius: 10, padding: 12, marginTop: 10 }}>
+              <View key={idx} style={{ backgroundColor: editingIndex === idx ? '#eef2ff' : '#fafcff', borderWidth: 1, borderColor: editingIndex === idx ? '#818cf8' : '#e0e7ef', borderRadius: 10, padding: 12, marginTop: 10 }}>
                 {/* Row 1: Name and Total */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
                   <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: '#0056b3', paddingRight: 10 }} numberOfLines={2}>
@@ -678,21 +702,89 @@ export default function CreateOrderScreen({ navigation, route }) {
                 </View>
 
                 {/* Row 3: Remark */}
-                {!!item.remark && (
+                {!!item.remark && editingIndex !== idx && (
                   <View style={{ marginTop: 6, backgroundColor: '#fffde7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
                     <Text style={{ fontSize: 11, color: '#6d4c41', fontStyle: 'italic' }}>📝 {item.remark}</Text>
                   </View>
                 )}
 
-                {/* Row 4: Divider and Actions */}
-                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f0f2f5', gap: 10 }}>
-                  <TouchableOpacity onPress={() => handleEditProduct(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff3e0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
-                    <Text style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold' }}>✏️ Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleRemoveProduct(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffebee', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
-                    <Text style={{ fontSize: 12, color: '#c62828', fontWeight: 'bold' }}>🗑️ Delete</Text>
-                  </TouchableOpacity>
-                </View>
+                {/* ── INLINE EDIT FORM (only for editing index) ── */}
+                {editingIndex === idx && (
+                  <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#c7d2fe' }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#3730a3', marginBottom: 8 }}>✏️ Edit: {item.productName}</Text>
+                    {/* Qty / Rate / Disc% row */}
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>QTY</Text>
+                        <TextInput
+                          style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 14, backgroundColor: '#fff' }}
+                          value={inlineEditItem.qty}
+                          onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, qty: v }))}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>RATE</Text>
+                        <TextInput
+                          style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 14, backgroundColor: '#fff' }}
+                          value={inlineEditItem.rate}
+                          onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, rate: v }))}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>DISC %</Text>
+                        <TextInput
+                          style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 14, backgroundColor: '#fff' }}
+                          value={inlineEditItem.discountPercent}
+                          onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, discountPercent: v }))}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                    </View>
+                    {/* Amount preview */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e8f5e9', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8 }}>
+                      <Text style={{ fontSize: 12, color: '#374151' }}>Amount</Text>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: '#1565C0' }}>₹{calcInlineAmount()}</Text>
+                    </View>
+                    {/* Remark */}
+                    <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>PRODUCT REMARK</Text>
+                    <TextInput
+                      style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 13, backgroundColor: '#fff', minHeight: 50, textAlignVertical: 'top', marginBottom: 10 }}
+                      value={inlineEditItem.remark}
+                      onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, remark: v }))}
+                      multiline
+                      placeholder="Remark..."
+                    />
+                    {/* Update / Cancel */}
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity
+                        onPress={() => setEditingIndex(null)}
+                        style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' }}
+                      >
+                        <Text style={{ color: '#64748b', fontWeight: '700', fontSize: 13 }}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleInlineUpdate(idx)}
+                        style={{ flex: 2, paddingVertical: 10, borderRadius: 8, backgroundColor: '#0056b3', alignItems: 'center' }}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>✅ Update Product</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {/* Row 4: Edit / Delete buttons */}
+                {editingIndex !== idx && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f0f2f5', gap: 10 }}>
+                    <TouchableOpacity onPress={() => handleInlineEdit(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff3e0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold' }}>✏️ Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleRemoveProduct(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffebee', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 12, color: '#c62828', fontWeight: 'bold' }}>🗑️ Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             ))}
           </SectionCard>
