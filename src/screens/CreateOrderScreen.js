@@ -554,56 +554,7 @@ export default function CreateOrderScreen({ navigation, route }) {
           </View>
         </SectionCard>
 
-        {productsList.length > 0 && (
-          <SectionCard style={{ marginTop: 12 }}>
-            <Text style={styles.sectionTitle}>Items Details ({productsList.length})</Text>
-            {productsList.map((item, idx) => (
-              <View key={idx} style={{ backgroundColor: '#fafcff', borderWidth: 1, borderColor: '#e0e7ef', borderRadius: 10, padding: 12, marginTop: 10 }}>
-                {/* Row 1: Name and Total */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: '#0056b3', paddingRight: 10 }} numberOfLines={2}>
-                    {item.productName}
-                  </Text>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#1565C0' }}>
-                    ₹{parseFloat(item.amount).toFixed(2)}
-                  </Text>
-                </View>
-                
-                {/* Row 2: Qty/Rate and Discount */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 12, color: '#78909c', fontWeight: '500' }}>
-                    {item.qty} {item.unit} @ ₹{item.rate}
-                  </Text>
-                  {parseFloat(item.discountPercent) > 0 && (
-                    <View style={{ backgroundColor: '#e8f5e9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                      <Text style={{ fontSize: 11, color: '#2e7d32', fontWeight: '700' }}>
-                        -{item.discountPercent}% (₹{parseFloat(item.discount || 0).toFixed(2)})
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Row 3: Remark */}
-                {!!item.remark && (
-                  <View style={{ marginTop: 6, backgroundColor: '#fffde7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
-                    <Text style={{ fontSize: 11, color: '#6d4c41', fontStyle: 'italic' }}>📝 {item.remark}</Text>
-                  </View>
-                )}
-
-                {/* Row 4: Divider and Actions */}
-                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f0f2f5', gap: 10 }}>
-                  <TouchableOpacity onPress={() => handleEditProduct(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff3e0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
-                    <Text style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold' }}>✏️ Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleRemoveProduct(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffebee', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
-                    <Text style={{ fontSize: 12, color: '#c62828', fontWeight: 'bold' }}>🗑️ Delete</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </SectionCard>
-        )}
-
+        {/* ── Product Details form (above cart so Edit scrolls UP, not DOWN) ── */}
         <SectionCard style={{ marginTop: 12 }} onLayout={(e) => { productSectionY.current = e.nativeEvent.layout.y; }}>
           <View style={styles.sectionHeader}>
             <Icon name="product" size={16} color="#0056b3" />
@@ -696,7 +647,58 @@ export default function CreateOrderScreen({ navigation, route }) {
           </TouchableOpacity>
         </SectionCard>
 
-        {/* The productsList mapping was moved higher up. */}
+        {/* ── Items Details (cart) — below the form ── */}
+        {productsList.length > 0 && (
+          <SectionCard style={{ marginTop: 12 }}>
+            <Text style={styles.sectionTitle}>Items Details ({productsList.length})</Text>
+            {productsList.map((item, idx) => (
+              <View key={idx} style={{ backgroundColor: '#fafcff', borderWidth: 1, borderColor: '#e0e7ef', borderRadius: 10, padding: 12, marginTop: 10 }}>
+                {/* Row 1: Name and Total */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: '#0056b3', paddingRight: 10 }} numberOfLines={2}>
+                    {item.productName}
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#1565C0' }}>
+                    ₹{parseFloat(item.amount).toFixed(2)}
+                  </Text>
+                </View>
+
+                {/* Row 2: Qty/Rate and Discount */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, color: '#78909c', fontWeight: '500' }}>
+                    {item.qty} {item.unit} @ ₹{item.rate}
+                  </Text>
+                  {parseFloat(item.discountPercent) > 0 && (
+                    <View style={{ backgroundColor: '#e8f5e9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                      <Text style={{ fontSize: 11, color: '#2e7d32', fontWeight: '700' }}>
+                        -{item.discountPercent}% (₹{parseFloat(item.discount || 0).toFixed(2)})
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Row 3: Remark */}
+                {!!item.remark && (
+                  <View style={{ marginTop: 6, backgroundColor: '#fffde7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                    <Text style={{ fontSize: 11, color: '#6d4c41', fontStyle: 'italic' }}>📝 {item.remark}</Text>
+                  </View>
+                )}
+
+                {/* Row 4: Divider and Actions */}
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f0f2f5', gap: 10 }}>
+                  <TouchableOpacity onPress={() => handleEditProduct(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff3e0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold' }}>✏️ Edit</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleRemoveProduct(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffebee', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 12, color: '#c62828', fontWeight: 'bold' }}>🗑️ Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </SectionCard>
+        )}
+
+
         <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmOrder}>
           <Icon name="confirm" size={16} color="#fff" />
           <Text style={styles.confirmText}>{isEditMode ? "UPDATE ORDER" : "CONFIRM ORDER"}</Text>

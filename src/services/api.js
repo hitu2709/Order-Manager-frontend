@@ -62,9 +62,9 @@ export const createOrder = async (orderData) => {
   return response.data;
 };
 
-// Update existing order
+// Update existing order - uses longer timeout for large orders (500+ items)
 export const updateOrder = async (id, orderData) => {
-  const response = await apiClient.put(`/api/orders/${id}`, orderData);
+  const response = await apiClient.put(`/api/orders/${id}`, orderData, { timeout: 120000 });
   return response.data;
 };
 
