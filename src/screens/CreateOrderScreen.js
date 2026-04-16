@@ -578,7 +578,95 @@ export default function CreateOrderScreen({ navigation, route }) {
           </View>
         </SectionCard>
 
-        {/* ── Product Details form (above cart so Edit scrolls UP, not DOWN) ── */}
+        {/* ── Items Details (cart) ── */}
+        {productsList.length > 0 && (
+          <SectionCard style={{ marginTop: 12 }}>
+            <Text style={styles.sectionTitle}>Items Details ({productsList.length})</Text>
+            {productsList.map((item, idx) => (
+              <View key={idx} style={{ backgroundColor: editingIndex === idx ? '#eef2ff' : '#fafcff', borderWidth: 1, borderColor: editingIndex === idx ? '#818cf8' : '#e0e7ef', borderRadius: 10, padding: 12, marginTop: 10 }}>
+                {/* Row 1: Name and Total */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: '#0056b3', paddingRight: 10 }} numberOfLines={2}>
+                    {item.productName}
+                  </Text>
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#1565C0' }}>
+                    ₹{parseFloat(item.amount).toFixed(2)}
+                  </Text>
+                </View>
+
+                {/* Row 2: Qty/Rate and Discount */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, color: '#78909c', fontWeight: '500' }}>
+                    {item.qty} {item.unit} @ ₹{item.rate}
+                  </Text>
+                  {parseFloat(item.discountPercent) > 0 && (
+                    <View style={{ backgroundColor: '#e8f5e9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                      <Text style={{ fontSize: 11, color: '#2e7d32', fontWeight: '700' }}>
+                        -{item.discountPercent}% (₹{parseFloat(item.discount || 0).toFixed(2)})
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Row 3: Remark */}
+                {!!item.remark && editingIndex !== idx && (
+                  <View style={{ marginTop: 6, backgroundColor: '#fffde7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
+                    <Text style={{ fontSize: 11, color: '#6d4c41', fontStyle: 'italic' }}>📝 {item.remark}</Text>
+                  </View>
+                )}
+
+                {/* ── INLINE EDIT FORM ── */}
+                {editingIndex === idx && (
+                  <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#c7d2fe' }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#3730a3', marginBottom: 8 }}>✏️ Edit: {item.productName}</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>QTY</Text>
+                        <TextInput style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 14, backgroundColor: '#fff' }} value={inlineEditItem.qty} onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, qty: v }))} keyboardType="numeric" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>RATE</Text>
+                        <TextInput style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 14, backgroundColor: '#fff' }} value={inlineEditItem.rate} onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, rate: v }))} keyboardType="numeric" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>DISC %</Text>
+                        <TextInput style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 14, backgroundColor: '#fff' }} value={inlineEditItem.discountPercent} onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, discountPercent: v }))} keyboardType="numeric" />
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e8f5e9', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8 }}>
+                      <Text style={{ fontSize: 12, color: '#374151' }}>Amount</Text>
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: '#1565C0' }}>₹{calcInlineAmount()}</Text>
+                    </View>
+                    <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>PRODUCT REMARK</Text>
+                    <TextInput style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 13, backgroundColor: '#fff', minHeight: 50, textAlignVertical: 'top', marginBottom: 10 }} value={inlineEditItem.remark} onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, remark: v }))} multiline placeholder="Remark..." />
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity onPress={() => setEditingIndex(null)} style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' }}>
+                        <Text style={{ color: '#64748b', fontWeight: '700', fontSize: 13 }}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleInlineUpdate(idx)} style={{ flex: 2, paddingVertical: 10, borderRadius: 8, backgroundColor: '#0056b3', alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>✅ Update Product</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {/* Row 4: Edit / Delete buttons */}
+                {editingIndex !== idx && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f0f2f5', gap: 10 }}>
+                    <TouchableOpacity onPress={() => handleInlineEdit(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff3e0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold' }}>✏️ Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleRemoveProduct(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffebee', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
+                      <Text style={{ fontSize: 12, color: '#c62828', fontWeight: 'bold' }}>🗑️ Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))}
+          </SectionCard>
+        )}
+
+        {/* ── Product Details form (below cart) ── */}
         <SectionCard style={{ marginTop: 12 }} onLayout={(e) => { productSectionY.current = e.nativeEvent.layout.y; }}>
           <View style={styles.sectionHeader}>
             <Icon name="product" size={16} color="#0056b3" />
@@ -670,125 +758,6 @@ export default function CreateOrderScreen({ navigation, route }) {
             <Text style={styles.addProductText}>Add Product</Text>
           </TouchableOpacity>
         </SectionCard>
-
-        {/* ── Items Details (cart) — below the form ── */}
-        {productsList.length > 0 && (
-          <SectionCard style={{ marginTop: 12 }}>
-            <Text style={styles.sectionTitle}>Items Details ({productsList.length})</Text>
-            {productsList.map((item, idx) => (
-              <View key={idx} style={{ backgroundColor: editingIndex === idx ? '#eef2ff' : '#fafcff', borderWidth: 1, borderColor: editingIndex === idx ? '#818cf8' : '#e0e7ef', borderRadius: 10, padding: 12, marginTop: 10 }}>
-                {/* Row 1: Name and Total */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '700', color: '#0056b3', paddingRight: 10 }} numberOfLines={2}>
-                    {item.productName}
-                  </Text>
-                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#1565C0' }}>
-                    ₹{parseFloat(item.amount).toFixed(2)}
-                  </Text>
-                </View>
-
-                {/* Row 2: Qty/Rate and Discount */}
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 12, color: '#78909c', fontWeight: '500' }}>
-                    {item.qty} {item.unit} @ ₹{item.rate}
-                  </Text>
-                  {parseFloat(item.discountPercent) > 0 && (
-                    <View style={{ backgroundColor: '#e8f5e9', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                      <Text style={{ fontSize: 11, color: '#2e7d32', fontWeight: '700' }}>
-                        -{item.discountPercent}% (₹{parseFloat(item.discount || 0).toFixed(2)})
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Row 3: Remark */}
-                {!!item.remark && editingIndex !== idx && (
-                  <View style={{ marginTop: 6, backgroundColor: '#fffde7', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 }}>
-                    <Text style={{ fontSize: 11, color: '#6d4c41', fontStyle: 'italic' }}>📝 {item.remark}</Text>
-                  </View>
-                )}
-
-                {/* ── INLINE EDIT FORM (only for editing index) ── */}
-                {editingIndex === idx && (
-                  <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#c7d2fe' }}>
-                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#3730a3', marginBottom: 8 }}>✏️ Edit: {item.productName}</Text>
-                    {/* Qty / Rate / Disc% row */}
-                    <View style={{ flexDirection: 'row', gap: 6, marginBottom: 8 }}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>QTY</Text>
-                        <TextInput
-                          style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 14, backgroundColor: '#fff' }}
-                          value={inlineEditItem.qty}
-                          onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, qty: v }))}
-                          keyboardType="numeric"
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>RATE</Text>
-                        <TextInput
-                          style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 14, backgroundColor: '#fff' }}
-                          value={inlineEditItem.rate}
-                          onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, rate: v }))}
-                          keyboardType="numeric"
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>DISC %</Text>
-                        <TextInput
-                          style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 14, backgroundColor: '#fff' }}
-                          value={inlineEditItem.discountPercent}
-                          onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, discountPercent: v }))}
-                          keyboardType="numeric"
-                        />
-                      </View>
-                    </View>
-                    {/* Amount preview */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e8f5e9', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8 }}>
-                      <Text style={{ fontSize: 12, color: '#374151' }}>Amount</Text>
-                      <Text style={{ fontSize: 15, fontWeight: '800', color: '#1565C0' }}>₹{calcInlineAmount()}</Text>
-                    </View>
-                    {/* Remark */}
-                    <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>PRODUCT REMARK</Text>
-                    <TextInput
-                      style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 13, backgroundColor: '#fff', minHeight: 50, textAlignVertical: 'top', marginBottom: 10 }}
-                      value={inlineEditItem.remark}
-                      onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, remark: v }))}
-                      multiline
-                      placeholder="Remark..."
-                    />
-                    {/* Update / Cancel */}
-                    <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <TouchableOpacity
-                        onPress={() => setEditingIndex(null)}
-                        style={{ flex: 1, paddingVertical: 10, borderRadius: 8, backgroundColor: '#f1f5f9', alignItems: 'center' }}
-                      >
-                        <Text style={{ color: '#64748b', fontWeight: '700', fontSize: 13 }}>Cancel</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => handleInlineUpdate(idx)}
-                        style={{ flex: 2, paddingVertical: 10, borderRadius: 8, backgroundColor: '#0056b3', alignItems: 'center' }}
-                      >
-                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>✅ Update Product</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-
-                {/* Row 4: Edit / Delete buttons */}
-                {editingIndex !== idx && (
-                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f0f2f5', gap: 10 }}>
-                    <TouchableOpacity onPress={() => handleInlineEdit(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff3e0', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
-                      <Text style={{ fontSize: 12, color: '#e65100', fontWeight: 'bold' }}>✏️ Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleRemoveProduct(idx)} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#ffebee', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 }}>
-                      <Text style={{ fontSize: 12, color: '#c62828', fontWeight: 'bold' }}>🗑️ Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
-            ))}
-          </SectionCard>
-        )}
 
 
         <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirmOrder}>
