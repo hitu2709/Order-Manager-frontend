@@ -388,7 +388,7 @@ export default function DashboardScreen({ navigation }) {
                    <Text style={[styles.tableCellText, { flex: 0.12, textAlign: 'center' }]}>{p.Quantity}</Text>
                    <Text style={[styles.tableCellText, { flex: 0.14, textAlign: 'right' }]}>{parseFloat(p.UnitPrice).toFixed(0)}</Text>
                    <Text style={[styles.tableCellText, { flex: 0.13, textAlign: 'right', color: '#2e7d32' }]}>
-                     {p.Discount > 0 ? `${((p.Discount / (p.Quantity * p.UnitPrice)) * 100).toFixed(0)}%` : '-'}
+                     {p.Discount > 0 ? `${parseFloat(p.Discount).toFixed(0)}%` : '-'}
                    </Text>
                    <Text style={[styles.tableCellText, { flex: 0.15, textAlign: 'right', fontWeight: '800' }]}>{parseFloat(p.TotalPrice).toFixed(0)}</Text>
                 </View>

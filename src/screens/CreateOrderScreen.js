@@ -307,11 +307,11 @@ export default function CreateOrderScreen({ navigation, route }) {
         qty: String(p.Quantity),
         unit: p.Unit || "",
         rate: String(p.UnitPrice),
-        discount: String(p.Discount || 0),
-        discountPercent: (() => {
-          const discAmt = parseFloat(p.Discount || 0);
+        discountPercent: String(p.Discount || 0),
+        discount: (() => {
+          const discPct = parseFloat(p.Discount || 0);
           const total = parseFloat(p.UnitPrice || 0) * parseFloat(p.Quantity || 0);
-          return total > 0 ? String(((discAmt / total) * 100).toFixed(2)) : "0";
+          return String((total * (discPct / 100)).toFixed(2));
         })(),
         amount: String(p.TotalPrice || (parseFloat(p.Quantity || 0) * parseFloat(p.UnitPrice || 0)) || "0"),
         remark: p.Description || p.remark || "",
