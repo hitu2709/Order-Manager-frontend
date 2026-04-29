@@ -243,7 +243,10 @@ export default function DashboardScreen({ navigation }) {
           <div class="tl">Grand Total Amount</div>
           <div class="tv">&#8377; ${totalAmount}</div>
         </div>
-        ${order.Notes ? `<div class="notes-box"><div class="notes-title">&#128221; Special Notes / Instructions</div><div class="notes-text">${order.Notes}</div></div>` : ''}
+        <div class="notes-box">
+          <div class="notes-title">&#128221; Special Notes / Instructions</div>
+          <div class="notes-text">${order.Notes || '-'}</div>
+        </div>
       </div>
       <div class="footer">
         <div class="footer-note">This is a computer generated sale order.</div>
@@ -523,9 +526,9 @@ export default function DashboardScreen({ navigation }) {
                     <Text style={styles.summaryOrderId}>#{String(selectedOrder.OrderID).padStart(10, '0')}</Text>
                     <Text style={styles.summaryCustomer}>{selectedOrder.CustomerName}</Text>
                   </View>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={{ flexDirection: 'row', gap: 16 }}>
                     <TouchableOpacity 
-                      style={[styles.editBtn, { backgroundColor: '#eff6ff' }]}
+                      style={[styles.editBtn, { backgroundColor: 'transparent', padding: 4 }]}
                       onPress={() => {
                         setViewModalVisible(false);
                         navigation.navigate('CreateOrder', { editOrder: selectedOrder });
@@ -534,13 +537,13 @@ export default function DashboardScreen({ navigation }) {
                       <Text style={{ fontSize: 18 }}>✏️</Text>
                     </TouchableOpacity>
                     <TouchableOpacity 
-                      style={[styles.editBtn, { backgroundColor: '#f0fdf4' }]}
+                      style={[styles.editBtn, { backgroundColor: 'transparent', padding: 4 }]}
                       disabled={pdfLoading}
                       onPress={() => generateOrderPDF(selectedOrder)}
                     >
                       {pdfLoading
                         ? <ActivityIndicator size="small" color="#16a34a" />
-                        : <Text style={{ fontSize: 18 }}>⬇️</Text>
+                        : <Text style={{ fontSize: 20 }}>⬇️</Text>
                       }
                     </TouchableOpacity>
                   </View>
@@ -587,19 +590,17 @@ export default function DashboardScreen({ navigation }) {
               </View>
 
               {/* Special Notes Section */}
-              {!!selectedOrder.Notes && (
-                <View style={[styles.transportSection, { backgroundColor: '#fffbeb', borderColor: '#fcd34d' }]}>
-                  <View style={[styles.detailIconBox, { backgroundColor: '#fef3c7' }]}>
-                    <Text style={{ fontSize: 16 }}>📝</Text>
-                  </View>
-                  <View style={{ flex: 1, marginLeft: 12 }}>
-                    <Text style={[styles.transportTitle, { color: '#92400e' }]}>Special Notes</Text>
-                    <Text style={[styles.transportText, { color: '#78350f' }]}>
-                      {selectedOrder.Notes}
-                    </Text>
-                  </View>
+              <View style={styles.transportSection}>
+                <View style={[styles.detailIconBox, { backgroundColor: '#f0f9ff' }]}>
+                  <Text style={{ fontSize: 16 }}>📝</Text>
                 </View>
-              )}
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.transportTitle}>Special Notes</Text>
+                  <Text style={styles.transportText}>
+                    {selectedOrder.Notes || '-'}
+                  </Text>
+                </View>
+              </View>
 
               <View style={styles.detailProductsHead}>
                 <Text style={styles.detailSectionTitle}>ORDERED ITEMS</Text>
