@@ -24,6 +24,8 @@ import { fetchReport1, fetchReport2, fetchReport3, fetchReport4, fetchOrders, de
 import { Linking } from 'react-native';
 import ReportCard from '../components/ReportCard';
 import Icon from '../components/Icon';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 const REPORT_COLORS = ['#0056b3', '#009688', '#ff9800', '#e91e63'];
 
@@ -42,6 +44,7 @@ export default function DashboardScreen({ navigation }) {
   const [actionLoading, setActionLoading] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
   
   // Animation for side menu
   const drawerWidth = Dimensions.get('window').width * 0.75;
@@ -106,6 +109,176 @@ export default function DashboardScreen({ navigation }) {
       Alert.alert('Error', 'Failed to fetch order details');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const generateOrderPDF = async (order) => {
+    try {
+      setPdfLoading(true);
+      const totalAmount = (() => {
+        const amt = parseFloat(order.TotalAmount);
+        if (!isNaN(amt) && amt > 0) return amt.toFixed(2);
+        return (order.products || []).reduce((sum, p) => sum + parseFloat(p.TotalPrice || 0), 0).toFixed(2);
+      })();
+      const totalQty = (order.products || []).reduce((sum, p) => sum + (parseFloat(p.Quantity) || 0), 0);
+      const orderDate = new Date(order.OrderDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+      const orderNo = String(order.OrderID).padStart(10, '0');
+
+      const itemRows = (order.products || []).map((p, i) => {
+        const discPct = parseFloat(p.Discount || 0);
+        const qty = parseFloat(p.Quantity || 0);
+        const rate = parseFloat(p.UnitPrice || 0);
+        const discAmt = qty * rate * (discPct / 100);
+        const netAmt = parseFloat(p.TotalPrice || (qty * rate - discAmt) || 0);
+        const discCell = discPct > 0
+          ? `<span style="color:#16a34a;font-weight:700">${discPct.toFixed(0)}%</span><br/><span style="color:#6b7280;font-size:10px">(\u20b9${discAmt.toFixed(0)})</span>`
+          : `<span style="color:#d1d5db">-</span>`;
+        return `
+          <tr style="background:${i % 2 === 0 ? '#ffffff' : '#f8fafc'}">
+            <td style="padding:9px 10px;font-size:12px;color:#374151;border-bottom:1px solid #e5e7eb;font-weight:600">${p.ItemCode || ''}</td>
+            <td style="padding:9px 10px;font-size:12px;color:#111827;font-weight:700;border-bottom:1px solid #e5e7eb">${p.ProductName || ''}</td>
+            <td style="padding:9px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e5e7eb;font-weight:600">${qty}</td>
+            <td style="padding:9px 10px;font-size:12px;text-align:right;border-bottom:1px solid #e5e7eb">\u20b9${rate.toFixed(0)}</td>
+            <td style="padding:9px 10px;font-size:12px;text-align:center;border-bottom:1px solid #e5e7eb">${discCell}</td>
+            <td style="padding:9px 10px;font-size:13px;text-align:right;border-bottom:1px solid #e5e7eb;font-weight:800;color:#1e3a8a">\u20b9${netAmt.toFixed(0)}</td>
+            <td style="padding:9px 10px;font-size:11px;color:#6b7280;border-bottom:1px solid #e5e7eb">${p.Description || ''}</td>
+          </tr>`;
+      }).join('');
+
+      const html = `
+      <!DOCTYPE html><html><head><meta charset="utf-8"/>
+      <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background:#f1f5f9; color:#111827; }
+        .page { max-width:800px; margin:0 auto; background:#fff; }
+        .header { background:linear-gradient(135deg,#0056b3,#003d82); color:#fff; padding:32px 36px 24px; }
+        .header-top { display:flex; justify-content:space-between; align-items:flex-start; }
+        .company-name { font-size:22px; font-weight:800; letter-spacing:1px; }
+        .order-badge { background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.35); border-radius:8px; padding:8px 16px; text-align:right; }
+        .order-badge .label { font-size:10px; opacity:0.75; letter-spacing:1px; text-transform:uppercase; }
+        .order-badge .value { font-size:15px; font-weight:800; letter-spacing:1px; }
+        .header-divider { height:1px; background:rgba(255,255,255,0.2); margin:18px 0; }
+        .header-meta { display:flex; gap:32px; flex-wrap:wrap; }
+        .meta-item .meta-label { font-size:10px; opacity:0.65; text-transform:uppercase; letter-spacing:0.8px; }
+        .meta-item .meta-value { font-size:13px; font-weight:700; margin-top:2px; }
+        .body { padding:28px 36px; }
+        .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:28px; }
+        .info-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:16px 18px; }
+        .info-card .card-title { font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:0.8px; font-weight:700; margin-bottom:8px; }
+        .info-card .card-value { font-size:14px; color:#1e293b; font-weight:700; }
+        .info-card .card-sub { font-size:12px; color:#64748b; margin-top:3px; }
+        .section-title { font-size:13px; font-weight:800; color:#0056b3; text-transform:uppercase; letter-spacing:1px; margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid #dbeafe; }
+        table { width:100%; border-collapse:collapse; margin-bottom:24px; }
+        thead tr { background:#0056b3; }
+        thead th { padding:11px 10px; font-size:11px; color:#fff; font-weight:700; text-transform:uppercase; letter-spacing:0.5px; }
+        thead th:nth-child(3) { text-align:center; }
+        thead th:nth-child(4),thead th:nth-child(6) { text-align:right; }
+        thead th:nth-child(5) { text-align:center; }
+        .totals-row { background:#eff6ff; border-top:2px solid #0056b3; }
+        .totals-row td { padding:12px 10px; font-weight:800; font-size:14px; }
+        .notes-box { background:#fffbeb; border:1px solid #fcd34d; border-radius:10px; padding:16px 18px; margin-bottom:24px; }
+        .notes-box .notes-title { font-size:11px; color:#92400e; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:8px; }
+        .notes-box .notes-text { font-size:13px; color:#78350f; line-height:1.6; }
+        .footer { background:#f8fafc; border-top:1px solid #e2e8f0; padding:18px 36px; display:flex; justify-content:space-between; align-items:center; }
+        .footer-note { font-size:11px; color:#94a3b8; }
+        .total-highlight { background:#0056b3; color:#fff; border-radius:10px; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
+        .total-highlight .tl { font-size:13px; opacity:0.85; font-weight:600; }
+        .total-highlight .tv { font-size:22px; font-weight:800; }
+      </style></head><body>
+      <div class="page">
+        <div class="header">
+          <div class="header-top">
+            <div>
+              <div class="company-name">SALE ORDER</div>
+              <div style="font-size:13px;opacity:0.8;margin-top:4px">${order.CustomerName}</div>
+            </div>
+            <div class="order-badge">
+              <div class="label">Order No.</div>
+              <div class="value">#${orderNo}</div>
+            </div>
+          </div>
+          <div class="header-divider"></div>
+          <div class="header-meta">
+            <div class="meta-item"><div class="meta-label">Order Date</div><div class="meta-value">${orderDate}</div></div>
+            <div class="meta-item"><div class="meta-label">Total Items</div><div class="meta-value">${(order.products || []).length} Products</div></div>
+            <div class="meta-item"><div class="meta-label">Total Qty</div><div class="meta-value">${totalQty} Units</div></div>
+            ${order.SalesmanName && order.SalesmanName !== 'Missing Name' ? `<div class="meta-item"><div class="meta-label">Salesman</div><div class="meta-value">${order.SalesmanName}</div></div>` : ''}
+          </div>
+        </div>
+
+        <div class="body">
+          <div class="info-grid">
+            <div class="info-card">
+              <div class="card-title">&#128101; Party / Customer</div>
+              <div class="card-value">${order.CustomerName}</div>
+              ${order.Place ? `<div class="card-sub">&#128205; ${order.Place}</div>` : ''}
+            </div>
+            <div class="info-card">
+              <div class="card-title">&#128665; Transport / Shipping</div>
+              <div class="card-value">${order.Transport || 'Not specified'}</div>
+            </div>
+          </div>
+
+          <div class="section-title">&#128230; Ordered Items</div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left">Code</th>
+                <th style="text-align:left">Product Name</th>
+                <th style="text-align:center">Qty</th>
+                <th style="text-align:right">Rate</th>
+                <th style="text-align:center">Disc</th>
+                <th style="text-align:right">Amount</th>
+                <th style="text-align:left">Remark</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemRows}
+              <tr class="totals-row">
+                <td colspan="2" style="color:#1e3a8a">TOTAL</td>
+                <td style="text-align:center;color:#1e3a8a">${totalQty}</td>
+                <td></td><td></td>
+                <td style="text-align:right;color:#1e3a8a;font-size:15px">&#8377;${totalAmount}</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="total-highlight">
+            <div class="tl">Grand Total Amount</div>
+            <div class="tv">&#8377; ${totalAmount}</div>
+          </div>
+
+          ${order.Notes ? `
+          <div class="notes-box">
+            <div class="notes-title">&#128221; Special Notes / Instructions</div>
+            <div class="notes-text">${order.Notes}</div>
+          </div>` : ''}
+        </div>
+
+        <div class="footer">
+          <div class="footer-note">This is a computer generated sale order.</div>
+          <div class="footer-note">Order #${orderNo} &bull; ${orderDate}</div>
+        </div>
+      </div>
+      </body></html>`;
+
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Order #${orderNo} - ${order.CustomerName}`,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('PDF Saved', `PDF saved to: ${uri}`);
+      }
+    } catch (err) {
+      console.error('PDF Error:', err);
+      Alert.alert('Error', 'Failed to generate PDF. Please try again.');
+    } finally {
+      setPdfLoading(false);
     }
   };
 
@@ -314,15 +487,27 @@ export default function DashboardScreen({ navigation }) {
                     <Text style={styles.summaryOrderId}>#{String(selectedOrder.OrderID).padStart(10, '0')}</Text>
                     <Text style={styles.summaryCustomer}>{selectedOrder.CustomerName}</Text>
                   </View>
-                  <TouchableOpacity 
-                    style={styles.editBtn}
-                    onPress={() => {
-                      setViewModalVisible(false);
-                      navigation.navigate('CreateOrder', { editOrder: selectedOrder });
-                    }}
-                  >
-                    <Text style={{ fontSize: 18 }}>✏️</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity 
+                      style={[styles.editBtn, { backgroundColor: '#eff6ff' }]}
+                      onPress={() => {
+                        setViewModalVisible(false);
+                        navigation.navigate('CreateOrder', { editOrder: selectedOrder });
+                      }}
+                    >
+                      <Text style={{ fontSize: 18 }}>✏️</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.editBtn, { backgroundColor: '#f0fdf4' }]}
+                      disabled={pdfLoading}
+                      onPress={() => generateOrderPDF(selectedOrder)}
+                    >
+                      {pdfLoading
+                        ? <ActivityIndicator size="small" color="#16a34a" />
+                        : <Text style={{ fontSize: 18 }}>⬇️</Text>
+                      }
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 <View style={styles.summaryPriceSection}>
