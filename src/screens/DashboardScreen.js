@@ -586,7 +586,21 @@ export default function DashboardScreen({ navigation }) {
                 </View>
               </View>
 
-              {/* Products Section */}
+              {/* Special Notes Section */}
+              {!!selectedOrder.Notes && (
+                <View style={[styles.transportSection, { backgroundColor: '#fffbeb', borderColor: '#fcd34d' }]}>
+                  <View style={[styles.detailIconBox, { backgroundColor: '#fef3c7' }]}>
+                    <Text style={{ fontSize: 16 }}>📝</Text>
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.transportTitle, { color: '#92400e' }]}>Special Notes</Text>
+                    <Text style={[styles.transportText, { color: '#78350f' }]}>
+                      {selectedOrder.Notes}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               <View style={styles.detailProductsHead}>
                 <Text style={styles.detailSectionTitle}>ORDERED ITEMS</Text>
                 <Text style={styles.itemCountText}>{selectedOrder.products?.length} Items</Text>
@@ -619,8 +633,8 @@ export default function DashboardScreen({ navigation }) {
             </ScrollView>
           )}
 
-          {/* WhatsApp sharing footer */}
-          <View style={styles.detailFooter}>
+          {/* WhatsApp sharing footer — disabled for now, keep for future use */}
+          {/* <View style={styles.detailFooter}>
             <TouchableOpacity 
               style={styles.whatsappBtn}
               disabled={waLoading}
@@ -632,7 +646,7 @@ export default function DashboardScreen({ navigation }) {
               }
               <Text style={styles.whatsappBtnText}>Share PDF via WhatsApp</Text>
             </TouchableOpacity>
-          </View>
+          </View> */}
         </View>
       </Modal>
 
