@@ -17,6 +17,7 @@ import {
   Dimensions,
   Platform,
   TextInput,
+  BackHandler,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
@@ -81,6 +82,27 @@ export default function DashboardScreen({ navigation }) {
       ),
     });
   }, [navigation]);
+
+  // Hardware back press → exit confirmation
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        Alert.alert(
+          'Exit App',
+          'Are you sure you want to exit?',
+          [
+            { text: 'No', style: 'cancel' },
+            { text: 'Yes', style: 'destructive', onPress: () => BackHandler.exitApp() },
+          ],
+          { cancelable: true }
+        );
+        return true; // prevent default back action
+      };
+      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => subscription.remove();
+    }, [])
+  );
+
 
   const handleDelete = (orderId) => {
     Alert.alert('Delete Order', `Are you sure you want to delete order ${orderId}?`, [
