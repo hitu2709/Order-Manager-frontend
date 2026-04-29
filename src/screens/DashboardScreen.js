@@ -526,24 +526,24 @@ export default function DashboardScreen({ navigation }) {
                     <Text style={styles.summaryOrderId}>#{String(selectedOrder.OrderID).padStart(10, '0')}</Text>
                     <Text style={styles.summaryCustomer}>{selectedOrder.CustomerName}</Text>
                   </View>
-                  <View style={{ flexDirection: 'row', gap: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
                     <TouchableOpacity 
-                      style={[styles.editBtn, { backgroundColor: 'transparent', padding: 4 }]}
+                      style={{ padding: 4 }}
                       onPress={() => {
                         setViewModalVisible(false);
                         navigation.navigate('CreateOrder', { editOrder: selectedOrder });
                       }}
                     >
-                      <Text style={{ fontSize: 18 }}>✏️</Text>
+                      <Text style={{ fontSize: 22 }}>✏️</Text>
                     </TouchableOpacity>
                     <TouchableOpacity 
-                      style={[styles.editBtn, { backgroundColor: 'transparent', padding: 4 }]}
+                      style={{ padding: 4 }}
                       disabled={pdfLoading}
                       onPress={() => generateOrderPDF(selectedOrder)}
                     >
                       {pdfLoading
-                        ? <ActivityIndicator size="small" color="#16a34a" />
-                        : <Text style={{ fontSize: 20 }}>⬇️</Text>
+                        ? <ActivityIndicator size="small" color="#0056b3" />
+                        : <Image source={require('../../assets/icons/shared.png')} style={{ width: 22, height: 22, resizeMode: 'contain' }} />
                       }
                     </TouchableOpacity>
                   </View>
