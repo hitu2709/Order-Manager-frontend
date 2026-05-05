@@ -384,9 +384,11 @@ export default function DashboardScreen({ navigation }) {
       try {
         const res = await fetchOrders();
         if (res && res.success && Array.isArray(res.data)) {
-          setRecentOrders(res.data);
+          const sorted = [...res.data].sort((a, b) => (b.OrderID || 0) - (a.OrderID || 0));
+          setRecentOrders(sorted);
         } else if (Array.isArray(res)) {
-          setRecentOrders(res);
+          const sorted = [...res].sort((a, b) => (b.OrderID || 0) - (a.OrderID || 0));
+          setRecentOrders(sorted);
         } else {
           setRecentOrders([]);
         }
