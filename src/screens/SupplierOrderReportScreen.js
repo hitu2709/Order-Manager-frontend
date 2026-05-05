@@ -95,8 +95,8 @@ export default function SupplierOrderReportScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar backgroundColor="#e91e63" barStyle="light-content" />
-      <View style={[styles.header, { backgroundColor: "#e91e63" }]}>
+      <StatusBar backgroundColor="#0056b3" barStyle="light-content" />
+      <View style={[styles.header, { backgroundColor: "#0056b3" }]}>
         <TouchableOpacity style={styles.headerBack} onPress={() => navigation.goBack()}>
           <Icon name="back" size={22} color="#fff" />
         </TouchableOpacity>
@@ -137,7 +137,7 @@ export default function SupplierOrderReportScreen({ navigation }) {
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.reportBtn, { backgroundColor: "#e91e63" }]} onPress={handleGenerateReport}>
+          <TouchableOpacity style={[styles.reportBtn, { backgroundColor: "#0056b3" }]} onPress={handleGenerateReport}>
             <Icon name="reports" size={18} color="#fff" />
             <Text style={styles.reportBtnText}>GENERATE REPORT</Text>
           </TouchableOpacity>
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "70%", padding: 24 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#e91e63" },
+  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#0056b3" },
   closeText: { color: "#e91e63", fontWeight: "bold" },
   searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#f5f7fa", borderRadius: 12, paddingHorizontal: 12, height: 48, marginBottom: 16 },
   searchInput: { flex: 1, marginLeft: 10, fontSize: 15 },

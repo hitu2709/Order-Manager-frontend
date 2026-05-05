@@ -92,8 +92,8 @@ export default function StockReportScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar backgroundColor="#009688" barStyle="light-content" />
-      <View style={[styles.header, { backgroundColor: "#009688" }]}>
+      <StatusBar backgroundColor="#0056b3" barStyle="light-content" />
+      <View style={[styles.header, { backgroundColor: "#0056b3" }]}>
         <TouchableOpacity style={styles.headerBack} onPress={() => navigation.goBack()}>
           <Icon name="back" size={22} color="#fff" />
         </TouchableOpacity>
@@ -144,7 +144,7 @@ export default function StockReportScreen({ navigation }) {
             <Text style={[styles.checkboxLabel, isSummary && styles.checkboxLabelActive]}>Summary Only</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.reportBtn, { backgroundColor: "#009688" }]} onPress={handleGenerateReport}>
+          <TouchableOpacity style={[styles.reportBtn, { backgroundColor: "#0056b3" }]} onPress={handleGenerateReport}>
             <Icon name="reports" size={18} color="#fff" />
             <Text style={styles.reportBtnText}>GENERATE REPORT</Text>
           </TouchableOpacity>
@@ -188,17 +188,17 @@ const styles = StyleSheet.create({
   dropdownPlaceholder: { flex: 1, fontSize: 14, color: "#b0bec5" },
   dropdownValue: { flex: 1, fontSize: 14, color: "#263238", fontWeight: "500" },
   checkboxContainer: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: "#e0e7ef", borderRadius: 10, paddingHorizontal: 12, height: 48, backgroundColor: "#fafcff" },
-  checkboxActive: { borderColor: "#009688", backgroundColor: "#e0f2f1" },
+  checkboxActive: { borderColor: "#0056b3", backgroundColor: "#e3f2fd" },
   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: "#90a4ae", marginRight: 10 },
-  checkboxInnerActive: { backgroundColor: "#009688", borderColor: "#009688" },
+  checkboxInnerActive: { backgroundColor: "#0056b3", borderColor: "#0056b3" },
   checkboxLabel: { fontSize: 13, color: "#78909c", fontWeight: "600" },
-  checkboxLabelActive: { color: "#009688" },
+  checkboxLabelActive: { color: "#0056b3" },
   reportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 12, paddingVertical: 16, marginTop: 30, elevation: 4 },
   reportBtnText: { color: "#fff", fontWeight: "800", fontSize: 15, marginLeft: 10 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "70%", padding: 24 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#009688" },
+  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#0056b3" },
   closeText: { color: "#e91e63", fontWeight: "bold" },
   searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#f5f7fa", borderRadius: 12, paddingHorizontal: 12, height: 48, marginBottom: 16 },
   searchInput: { flex: 1, marginLeft: 10, fontSize: 15 },
