@@ -6,6 +6,9 @@ import LoginScreen from '../screens/LoginScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import CreateOrderScreen from '../screens/CreateOrderScreen';
 import PendingReportScreen from '../screens/PendingReportScreen';
+import DispatchReportScreen from '../screens/DispatchReportScreen';
+import StockReportScreen from '../screens/StockReportScreen';
+import SupplierOrderReportScreen from '../screens/SupplierOrderReportScreen';
 
 const Stack = createStackNavigator();
 
@@ -24,15 +27,12 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Login"
           component={LoginScreen}
-          options={{ headerShown: false }} // Login page has no header
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="Dashboard"
           component={DashboardScreen}
-          options={({ navigation }) => ({
-            title: 'Dashboard',
-            headerLeft: null, // Prevent going back to login
-          })}
+          options={{ title: 'Dashboard', headerLeft: null }}
         />
         <Stack.Screen
           name="CreateOrder"
@@ -42,6 +42,21 @@ export default function AppNavigator() {
         <Stack.Screen
           name="PendingReport"
           component={PendingReportScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="DispatchReport"
+          component={DispatchReportScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="StockReport"
+          component={StockReportScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SupplierOrderReport"
+          component={SupplierOrderReportScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

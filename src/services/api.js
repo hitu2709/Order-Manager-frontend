@@ -110,9 +110,26 @@ export const fetchOrderNumbers = async () => {
   return response.data;
 };
 
-// Delete order
 export const deleteOrder = async (id) => {
   const response = await apiClient.delete(`/api/orders/${id}`);
+  return response.data;
+};
+
+// Fetch dispatch report
+export const fetchDispatchReport = async (filters) => {
+  const response = await apiClient.get('/api/reports/dispatch', { params: filters });
+  return response.data;
+};
+
+// Fetch stock report
+export const fetchStockReport = async (filters) => {
+  const response = await apiClient.get('/api/reports/stock', { params: filters });
+  return response.data;
+};
+
+// Fetch supplier order report
+export const fetchSupplierOrderReport = async (filters) => {
+  const response = await apiClient.get('/api/reports/supplier-orders', { params: filters });
   return response.data;
 };
 

@@ -720,21 +720,21 @@ export default function DashboardScreen({ navigation }) {
                   <Text style={styles.menuItemText}>Pending Reports</Text>
                 </TouchableOpacity>
                 
-                <TouchableOpacity style={styles.menuItem} onPress={() => { toggleMenu(false); Alert.alert("Dispatch Report", "Detailed dispatch tracking."); }}>
+                <TouchableOpacity style={styles.menuItem} onPress={() => { toggleMenu(false); navigation.navigate('DispatchReport'); }}>
                   <View style={[styles.menuIconBox, { backgroundColor: '#e0f2f1' }]}>
                     <Icon name="transport" size={20} color="#009688" />
                   </View>
                   <Text style={styles.menuItemText}>Dispatch Report</Text>
                 </TouchableOpacity>
                 
-                <TouchableOpacity style={styles.menuItem} onPress={() => { toggleMenu(false); Alert.alert("Stock Report", "Inventory status dashboard."); }}>
+                <TouchableOpacity style={styles.menuItem} onPress={() => { toggleMenu(false); navigation.navigate('StockReport'); }}>
                   <View style={[styles.menuIconBox, { backgroundColor: '#fff3e0' }]}>
                     <Icon name="product" size={20} color="#ff9800" />
                   </View>
                   <Text style={styles.menuItemText}>Stock Report</Text>
                 </TouchableOpacity>
                 
-                <TouchableOpacity style={styles.menuItem} onPress={() => { toggleMenu(false); Alert.alert("Supplier Against Report", "Supplier analytics."); }}>
+                <TouchableOpacity style={styles.menuItem} onPress={() => { toggleMenu(false); navigation.navigate('SupplierOrderReport'); }}>
                   <View style={[styles.menuIconBox, { backgroundColor: '#fce4ec' }]}>
                     <Icon name="party" size={20} color="#e91e63" />
                   </View>
