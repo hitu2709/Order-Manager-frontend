@@ -4,17 +4,14 @@ import {
   StyleSheet, SafeAreaView, StatusBar, Alert, ActivityIndicator,
   Modal, FlatList,
 } from "react-native";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 import {
-  fetchParties,
-  fetchProducts,
-  fetchOrderNumbers,
-  fetchPendingOrderReport
+  fetchParties, fetchProducts, fetchOrderNumbers, fetchPendingOrderReport
 } from "../services/api";
 import Icon from "../components/Icon";
 
-// ── Reusable components ───────────────────────────────────────────────────────
 const FieldLabel = ({ label }) => <Text style={styles.fieldLabel}>{label}</Text>;
-const SectionCard = ({ children }) => <View style={styles.card}>{children}</View>;
 
 const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placeholder, isSimple = false }) => {
   const [search, setSearch] = useState("");
@@ -22,9 +19,8 @@ const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placehold
     const val = isSimple ? String(item) : (item.PartyName || item.ProductName || item.ItemCode || "");
     return val.toLowerCase().includes(search.toLowerCase());
   });
-
   return (
-    <Modal visible={visible} animationType="slide" transparent={true}>
+    <Modal visible={visible} animationType="slide" transparent>
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
@@ -33,22 +29,13 @@ const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placehold
           </View>
           <View style={styles.searchBar}>
             <Icon name="search" size={14} color="#90a4ae" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder={placeholder}
-              value={search}
-              onChangeText={setSearch}
-              autoFocus
-            />
+            <TextInput style={styles.searchInput} placeholder={placeholder} value={search} onChangeText={setSearch} autoFocus />
           </View>
           <FlatList
             data={filtered}
-            keyExtractor={(_, index) => index.toString()}
+            keyExtractor={(_, i) => i.toString()}
             renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.listItem}
-                onPress={() => { onSelect(item); setSearch(""); }}
-              >
+              <TouchableOpacity style={styles.listItem} onPress={() => { onSelect(item); setSearch(""); }}>
                 <Text style={styles.listItemText}>
                   {isSimple ? item : (item.PartyName || item.ProductName || item.ItemCode)}
                 </Text>
@@ -61,186 +48,188 @@ const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placehold
   );
 };
 
+// ── PDF HTML template ──────────────────────────────────────────────────────────
+const buildPdfHtml = (data, filters) => {
+  const now = new Date().toLocaleString("en-IN");
+  const rows = data.map((r, i) => `
+    <tr style="background:${i % 2 === 0 ? '#f8faff' : '#fff'}">
+      <td>${r.VouchNo || r.OrderNo || r.OrderID || '-'}</td>
+      <td>${r.OrderDate || r.trans_dt || '-'}</td>
+      <td>${r.PartyName || r.CustomerName || '-'}</td>
+      <td style="text-align:center">${r.OrderQty ?? r.TotalQty ?? '-'}</td>
+      <td style="text-align:center">${r.DispatchQty ?? r.DesptchQty ?? 0}</td>
+      <td style="text-align:center;color:#d32f2f;font-weight:700">${r.BalQty ?? '-'}</td>
+    </tr>`).join("");
+
+  const totalBal = data.reduce((s, r) => s + (parseFloat(r.BalQty) || 0), 0);
+
+  return `<!DOCTYPE html><html><head>
+  <meta charset="UTF-8"/>
+  <style>
+    body{font-family:Arial,sans-serif;margin:0;padding:20px;color:#1a237e;}
+    .header{background:linear-gradient(135deg,#0056b3,#1976d2);color:#fff;padding:20px 24px;border-radius:10px;margin-bottom:20px;}
+    .header h1{margin:0;font-size:22px;letter-spacing:1px;}
+    .header p{margin:4px 0 0;font-size:13px;opacity:.85;}
+    .meta{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
+    .meta-box{background:#e3f2fd;border-radius:8px;padding:10px 16px;font-size:12px;}
+    .meta-box b{display:block;color:#0056b3;font-size:14px;margin-top:2px;}
+    table{width:100%;border-collapse:collapse;font-size:13px;}
+    th{background:#0056b3;color:#fff;padding:10px 8px;text-align:left;font-size:12px;letter-spacing:.5px;}
+    td{padding:9px 8px;border-bottom:1px solid #e8eaf6;}
+    .footer{margin-top:18px;text-align:right;font-size:12px;color:#555;}
+    .total-row{background:#e3f2fd!important;font-weight:700;}
+    .badge{display:inline-block;background:#0056b3;color:#fff;border-radius:20px;padding:2px 12px;font-size:11px;}
+  </style></head><body>
+  <div class="header">
+    <h1>📋 Pending Order Report</h1>
+    <p>Generated on ${now}</p>
+  </div>
+  <div class="meta">
+    <div class="meta-box">Period<b>${filters.fromDate} → ${filters.toDate}</b></div>
+    <div class="meta-box">Party<b>${filters.partyName || 'All Parties'}</b></div>
+    <div class="meta-box">Order No.<b>${filters.orderNo !== 'All' ? filters.orderNo : 'All'}</b></div>
+    <div class="meta-box">Product<b>${filters.productName || 'All Products'}</b></div>
+    <div class="meta-box">Records<b><span class="badge">${data.length}</span></b></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Order No.</th><th>Date</th><th>Party Name</th>
+      <th style="text-align:center">Ord Qty</th>
+      <th style="text-align:center">Disp Qty</th>
+      <th style="text-align:center">Bal Qty</th>
+    </tr></thead>
+    <tbody>${rows}
+    <tr class="total-row">
+      <td colspan="5" style="text-align:right;padding-right:12px">TOTAL BALANCE</td>
+      <td style="text-align:center;color:#d32f2f">${totalBal.toFixed(0)}</td>
+    </tr>
+    </tbody>
+  </table>
+  <div class="footer">Pending Order Report • ${now}</div>
+</body></html>`;
+};
+
 export default function PendingReportScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [dropdownLoading, setDropdownLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
 
-  // Master lists (unfiltered)
   const [allParties, setAllParties] = useState([]);
   const [allProducts, setAllProducts] = useState([]);
   const [allOrderNumbers, setAllOrderNumbers] = useState([]);
-
-  // Filtered lists (shown in dropdowns)
   const [parties, setParties] = useState([]);
   const [products, setProducts] = useState([]);
   const [orderNumbers, setOrderNumbers] = useState([]);
 
-  // Form State
-  const [fromDate, setFromDate] = useState(new Date().toISOString().split('T')[0]);
-  const [toDate, setToDate] = useState(new Date().toISOString().split('T')[0]);
+  const today = new Date().toISOString().split('T')[0];
+  const [fromDate, setFromDate] = useState(today);
+  const [toDate, setToDate] = useState(today);
   const [selectedParty, setSelectedParty] = useState(null);
   const [selectedOrderNo, setSelectedOrderNo] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isPendingOnly, setIsPendingOnly] = useState(true);
 
-  // Modals
   const [showPartyModal, setShowPartyModal] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
 
-  // ── Load all data on mount ─────────────────────────────────────────────────
   useEffect(() => {
-    loadAllDropdowns();
+    (async () => {
+      try {
+        const [pD, prD, oD] = await Promise.all([fetchParties(), fetchProducts(), fetchOrderNumbers()]);
+        const p = pD.data || [], pr = prD.data || [], o = oD.data || [];
+        setAllParties(p); setParties(p);
+        setAllProducts(pr); setProducts(pr);
+        setAllOrderNumbers(o); setOrderNumbers(o);
+      } catch (e) { console.error("Dropdown load error", e); }
+    })();
   }, []);
 
-  const loadAllDropdowns = async () => {
-    try {
-      const [pData, prodData, oNumData] = await Promise.all([
-        fetchParties(),
-        fetchProducts(),
-        fetchOrderNumbers()
-      ]);
-      const p = pData.data || [];
-      const prod = prodData.data || [];
-      const o = oNumData.data || [];
-      setAllParties(p);   setParties(p);
-      setAllProducts(prod); setProducts(prod);
-      setAllOrderNumbers(o); setOrderNumbers(o);
-    } catch (err) {
-      console.error("Failed to load dropdown data", err);
-    }
-  };
-
-  // ── Cascade: when party changes ────────────────────────────────────────────
   const handlePartySelect = useCallback(async (party) => {
     const isAll = !party || party.PartyID === 'All';
-    setSelectedParty(isAll ? null : party);
-    setSelectedOrderNo(null);   // reset dependent
-    setSelectedProduct(null);   // reset dependent
-    setShowPartyModal(false);
-
-    if (isAll) {
-      setOrderNumbers(allOrderNumbers);
-      setProducts(allProducts);
-      return;
-    }
-
+    setSelectedParty(isAll ? null : party); setSelectedOrderNo(null); setSelectedProduct(null);
+    setShowPartyModal(false); setReportData(null);
+    if (isAll) { setOrderNumbers(allOrderNumbers); setProducts(allProducts); return; }
     setDropdownLoading(true);
     try {
-      const [oData, prodData] = await Promise.all([
-        fetchOrderNumbers({ partyId: party.PartyID }),
-        fetchProducts({ partyId: party.PartyID }),
-      ]);
-      setOrderNumbers(oData.data || []);
-      setProducts(prodData.data || []);
-    } catch (e) {
-      console.error("Cascade party error", e);
-    } finally {
-      setDropdownLoading(false);
-    }
+      const [oD, prD] = await Promise.all([fetchOrderNumbers({ partyId: party.PartyID }), fetchProducts({ partyId: party.PartyID })]);
+      setOrderNumbers(oD.data || []); setProducts(prD.data || []);
+    } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
   }, [allOrderNumbers, allProducts]);
 
-  // ── Cascade: when order number changes ────────────────────────────────────
   const handleOrderNoSelect = useCallback(async (orderNo) => {
     const isAll = !orderNo || orderNo === 'All';
-    setSelectedOrderNo(isAll ? null : orderNo);
-    setSelectedProduct(null);   // reset product
-    setShowOrderModal(false);
-
-    if (isAll) {
-      // Restore to party-filtered or all
-      const partyId = selectedParty?.PartyID;
-      setDropdownLoading(true);
-      try {
-        const prodData = await fetchProducts(partyId ? { partyId } : {});
-        setProducts(prodData.data || []);
-      } catch (e) { console.error("Cascade orderNo reset error", e); }
-      finally { setDropdownLoading(false); }
-      return;
-    }
-
+    setSelectedOrderNo(isAll ? null : orderNo); setSelectedProduct(null);
+    setShowOrderModal(false); setReportData(null);
     setDropdownLoading(true);
     try {
-      const params = { orderNo };
-      if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
-      const prodData = await fetchProducts(params);
-      setProducts(prodData.data || []);
-    } catch (e) {
-      console.error("Cascade orderNo error", e);
-    } finally {
-      setDropdownLoading(false);
-    }
-  }, [selectedParty, allProducts]);
+      const params = {}; if (!isAll) params.orderNo = orderNo; if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
+      const prD = await fetchProducts(Object.keys(params).length ? params : {});
+      setProducts(prD.data || []);
+    } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
+  }, [selectedParty]);
 
-  // ── Cascade: when product changes ─────────────────────────────────────────
   const handleProductSelect = useCallback(async (product) => {
     const isAll = !product || product.ItemCode === 'All';
-    setSelectedProduct(isAll ? null : product);
-    setSelectedOrderNo(null);   // reset order no
-    setShowProductModal(false);
-
-    if (isAll) {
-      const partyId = selectedParty?.PartyID;
-      setDropdownLoading(true);
-      try {
-        const oData = await fetchOrderNumbers(partyId ? { partyId } : {});
-        setOrderNumbers(oData.data || []);
-      } catch (e) { console.error("Cascade product reset error", e); }
-      finally { setDropdownLoading(false); }
-      return;
-    }
-
+    setSelectedProduct(isAll ? null : product); setSelectedOrderNo(null);
+    setShowProductModal(false); setReportData(null);
     setDropdownLoading(true);
     try {
-      const params = { productId: product.ItemCode };
-      if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
-      const oData = await fetchOrderNumbers(params);
-      setOrderNumbers(oData.data || []);
-    } catch (e) {
-      console.error("Cascade product error", e);
-    } finally {
-      setDropdownLoading(false);
-    }
-  }, [selectedParty, allOrderNumbers]);
+      const params = {}; if (!isAll) params.productId = product.ItemCode; if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
+      const oD = await fetchOrderNumbers(Object.keys(params).length ? params : {});
+      setOrderNumbers(oD.data || []);
+    } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
+  }, [selectedParty]);
 
-  // ── Reset all filters ──────────────────────────────────────────────────────
   const handleReset = () => {
-    setSelectedParty(null);
-    setSelectedOrderNo(null);
-    setSelectedProduct(null);
-    setParties(allParties);
-    setOrderNumbers(allOrderNumbers);
-    setProducts(allProducts);
-    setIsPendingOnly(true);
+    setSelectedParty(null); setSelectedOrderNo(null); setSelectedProduct(null);
+    setParties(allParties); setOrderNumbers(allOrderNumbers); setProducts(allProducts);
+    setIsPendingOnly(true); setReportData(null);
   };
 
-  // ── Generate report ────────────────────────────────────────────────────────
   const handleGenerateReport = async () => {
-    setLoading(true);
+    setLoading(true); setReportData(null);
     try {
-      const filters = {
+      const res = await fetchPendingOrderReport({
         fromDate, toDate,
         partyId: selectedParty?.PartyID || 'All',
         orderNo: selectedOrderNo || 'All',
         productId: selectedProduct?.ItemCode || 'All',
-        pendingOnly: isPendingOnly
-      };
-      const res = await fetchPendingOrderReport(filters);
-      if (res.success) {
-        Alert.alert("Report Generated", `Found ${res.data.length} matching order(s).`);
+        pendingOnly: isPendingOnly,
+      });
+      if (res.success && res.data.length > 0) {
+        setReportData(res.data);
+      } else {
+        Alert.alert("No Data", "No records found for the selected filters.");
       }
-    } catch (err) {
-      Alert.alert("Error", "Failed to generate report.");
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { Alert.alert("Error", "Failed to generate report."); }
+    finally { setLoading(false); }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!reportData) return;
+    setPdfLoading(true);
+    try {
+      const html = buildPdfHtml(reportData, {
+        fromDate, toDate,
+        partyName: selectedParty?.PartyName,
+        orderNo: selectedOrderNo || 'All',
+        productName: selectedProduct ? `${selectedProduct.ItemCode} - ${selectedProduct.ProductName}` : null,
+      });
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: "application/pdf", dialogTitle: "Pending Order Report" });
+      } else {
+        Alert.alert("PDF Saved", `Saved to: ${uri}`);
+      }
+    } catch (e) { Alert.alert("Error", "Failed to generate PDF."); }
+    finally { setPdfLoading(false); }
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar backgroundColor="#0056b3" barStyle="light-content" />
-
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.headerBack} onPress={() => navigation.goBack()}>
           <Icon name="back" size={22} color="#fff" />
@@ -252,176 +241,165 @@ export default function PendingReportScreen({ navigation }) {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.pageTitle}>Report Filters</Text>
-
-        {dropdownLoading && (
-          <View style={styles.cascadeBar}>
-            <ActivityIndicator size="small" color="#0056b3" />
-            <Text style={styles.cascadeText}>Updating filters…</Text>
-          </View>
-        )}
-
-        <SectionCard>
-          {/* Dates */}
+        {/* Filters Card */}
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Filters</Text>
+          {dropdownLoading && (
+            <View style={styles.cascadeBar}>
+              <ActivityIndicator size="small" color="#0056b3" />
+              <Text style={styles.cascadeText}>Updating filters…</Text>
+            </View>
+          )}
           <View style={styles.row}>
             <View style={styles.halfCol}>
               <FieldLabel label="FROM DATE" />
-              <TextInput style={styles.input} value={fromDate} onChangeText={setFromDate} placeholder="YYYY-MM-DD" />
+              <TextInput style={styles.input} value={fromDate} onChangeText={v => { setFromDate(v); setReportData(null); }} placeholder="YYYY-MM-DD" />
             </View>
             <View style={styles.halfCol}>
               <FieldLabel label="TILL DATE" />
-              <TextInput style={styles.input} value={toDate} onChangeText={setToDate} placeholder="YYYY-MM-DD" />
+              <TextInput style={styles.input} value={toDate} onChangeText={v => { setToDate(v); setReportData(null); }} placeholder="YYYY-MM-DD" />
             </View>
           </View>
 
-          {/* Party */}
           <FieldLabel label="PARTY NAME" />
           <TouchableOpacity style={styles.dropdown} onPress={() => setShowPartyModal(true)}>
-            <Text style={selectedParty ? styles.dropdownValue : styles.dropdownPlaceholder}>
-              {selectedParty ? selectedParty.PartyName : "All Parties"}
-            </Text>
+            <Text style={selectedParty ? styles.dropdownValue : styles.dropdownPlaceholder}>{selectedParty ? selectedParty.PartyName : "All Parties"}</Text>
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          {/* Order No + Pending toggle */}
           <View style={styles.row}>
             <View style={styles.halfCol}>
               <FieldLabel label="ORDER NO." />
               <TouchableOpacity style={styles.dropdown} onPress={() => setShowOrderModal(true)}>
-                <Text style={selectedOrderNo ? styles.dropdownValue : styles.dropdownPlaceholder}>
-                  {selectedOrderNo ? String(selectedOrderNo) : "All"}
-                </Text>
+                <Text style={selectedOrderNo ? styles.dropdownValue : styles.dropdownPlaceholder}>{selectedOrderNo || "All"}</Text>
                 <Icon name="chevron" size={16} color="#90a4ae" />
               </TouchableOpacity>
             </View>
             <View style={styles.halfCol}>
-              <FieldLabel label="PENDING STATUS" />
-              <TouchableOpacity
-                style={[styles.checkboxContainer, isPendingOnly && styles.checkboxActive]}
-                onPress={() => setIsPendingOnly(!isPendingOnly)}
-              >
-                <View style={[styles.checkbox, isPendingOnly && styles.checkboxInnerActive]} />
-                <Text style={[styles.checkboxLabel, isPendingOnly && styles.checkboxLabelActive]}>Pending Only</Text>
+              <FieldLabel label="PENDING ONLY" />
+              <TouchableOpacity style={[styles.checkboxContainer, isPendingOnly && styles.checkboxActive]} onPress={() => { setIsPendingOnly(!isPendingOnly); setReportData(null); }}>
+                <View style={[styles.checkbox, isPendingOnly && styles.checkboxFilled]} />
+                <Text style={[styles.checkboxLabel, isPendingOnly && { color: '#0056b3' }]}>Pending Only</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          {/* Product */}
           <FieldLabel label="PRODUCT" />
           <TouchableOpacity style={styles.dropdown} onPress={() => setShowProductModal(true)}>
-            <Text style={selectedProduct ? styles.dropdownValue : styles.dropdownPlaceholder}>
-              {selectedProduct ? `${selectedProduct.ItemCode} - ${selectedProduct.ProductName}` : "All Products"}
-            </Text>
+            <Text style={selectedProduct ? styles.dropdownValue : styles.dropdownPlaceholder}>{selectedProduct ? `${selectedProduct.ItemCode} - ${selectedProduct.ProductName}` : "All Products"}</Text>
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          {/* Active filter chips */}
           {(selectedParty || selectedOrderNo || selectedProduct) && (
             <View style={styles.chipRow}>
-              {selectedParty && <View style={styles.chip}><Text style={styles.chipText}>Party: {selectedParty.PartyName}</Text></View>}
+              {selectedParty && <View style={styles.chip}><Text style={styles.chipText}>{selectedParty.PartyName}</Text></View>}
               {selectedOrderNo && <View style={styles.chip}><Text style={styles.chipText}>Order: {selectedOrderNo}</Text></View>}
-              {selectedProduct && <View style={styles.chip}><Text style={styles.chipText}>Product: {selectedProduct.ItemCode}</Text></View>}
+              {selectedProduct && <View style={styles.chip}><Text style={styles.chipText}>{selectedProduct.ItemCode}</Text></View>}
             </View>
           )}
 
-          <TouchableOpacity style={styles.reportBtn} onPress={handleGenerateReport}>
-            <Icon name="reports" size={18} color="#fff" />
-            <Text style={styles.reportBtnText}>GENERATE REPORT</Text>
+          <TouchableOpacity style={styles.generateBtn} onPress={handleGenerateReport} disabled={loading}>
+            {loading ? <ActivityIndicator color="#fff" /> : <>
+              <Icon name="reports" size={18} color="#fff" />
+              <Text style={styles.generateBtnText}>GENERATE REPORT</Text>
+            </>}
           </TouchableOpacity>
-        </SectionCard>
+        </View>
+
+        {/* Results */}
+        {reportData && (
+          <View style={styles.resultsCard}>
+            <View style={styles.resultsHeader}>
+              <View>
+                <Text style={styles.resultsTitle}>Results</Text>
+                <Text style={styles.resultsCount}>{reportData.length} record(s) found</Text>
+              </View>
+              <TouchableOpacity style={styles.pdfBtn} onPress={handleDownloadPdf} disabled={pdfLoading}>
+                {pdfLoading
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <><Text style={styles.pdfBtnText}>📄 PDF</Text></>}
+              </TouchableOpacity>
+            </View>
+
+            {/* Table header */}
+            <View style={styles.tableHeader}>
+              <Text style={[styles.th, { flex: 1 }]}>Order</Text>
+              <Text style={[styles.th, { flex: 1.4 }]}>Party</Text>
+              <Text style={[styles.th, { flex: 0.8, textAlign: 'center' }]}>Ord</Text>
+              <Text style={[styles.th, { flex: 0.8, textAlign: 'center' }]}>Disp</Text>
+              <Text style={[styles.th, { flex: 0.8, textAlign: 'center' }]}>Bal</Text>
+            </View>
+
+            {reportData.map((r, i) => (
+              <View key={i} style={[styles.tableRow, i % 2 === 0 && { backgroundColor: '#f8faff' }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tdBold}>{r.VouchNo || r.OrderNo || r.OrderID}</Text>
+                  <Text style={styles.tdSub}>{r.OrderDate || r.trans_dt}</Text>
+                </View>
+                <Text style={[styles.td, { flex: 1.4 }]} numberOfLines={2}>{r.PartyName || r.CustomerName}</Text>
+                <Text style={[styles.td, { flex: 0.8, textAlign: 'center' }]}>{r.OrderQty ?? r.TotalQty ?? '-'}</Text>
+                <Text style={[styles.td, { flex: 0.8, textAlign: 'center' }]}>{r.DispatchQty ?? r.DesptchQty ?? 0}</Text>
+                <Text style={[styles.tdBal, { flex: 0.8 }]}>{r.BalQty ?? '-'}</Text>
+              </View>
+            ))}
+
+            {/* Totals row */}
+            <View style={[styles.tableRow, { backgroundColor: '#e3f2fd' }]}>
+              <Text style={[styles.tdBold, { flex: 2.4 }]}>TOTAL</Text>
+              <Text style={[styles.td, { flex: 0.8, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.OrderQty ?? r.TotalQty) || 0), 0).toFixed(0)}</Text>
+              <Text style={[styles.td, { flex: 0.8, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.DispatchQty ?? r.DesptchQty) || 0), 0).toFixed(0)}</Text>
+              <Text style={[styles.tdBal, { flex: 0.8, fontSize: 14 }]}>{reportData.reduce((s, r) => s + (parseFloat(r.BalQty) || 0), 0).toFixed(0)}</Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
-      {/* Party Modal */}
-      <SearchableDropdown
-        visible={showPartyModal}
-        data={[{ PartyID: 'All', PartyName: 'All Parties' }, ...parties]}
-        title="Select Party"
-        placeholder="Search party..."
-        onSelect={(p) => handlePartySelect(p.PartyID === 'All' ? null : p)}
-        onClose={() => setShowPartyModal(false)}
-      />
-
-      {/* Order Number Modal */}
-      <SearchableDropdown
-        visible={showOrderModal}
-        data={['All', ...orderNumbers]}
-        isSimple={true}
-        title={`Select Order No.${selectedParty ? ` (${selectedParty.PartyName})` : ''}`}
-        placeholder="Search order no..."
-        onSelect={(o) => handleOrderNoSelect(o === 'All' ? null : o)}
-        onClose={() => setShowOrderModal(false)}
-      />
-
-      {/* Product Modal */}
-      <SearchableDropdown
-        visible={showProductModal}
-        data={[{ ItemCode: 'All', ProductName: 'All Products' }, ...products]}
-        title={`Select Product${selectedParty ? ` (${selectedParty.PartyName})` : ''}`}
-        placeholder="Search product..."
-        onSelect={(p) => handleProductSelect(p.ItemCode === 'All' ? null : p)}
-        onClose={() => setShowProductModal(false)}
-      />
-
-      {loading && (
-        <View style={styles.loadingOverlay}><ActivityIndicator size="large" color="#0056b3" /></View>
-      )}
+      <SearchableDropdown visible={showPartyModal} data={[{ PartyID: 'All', PartyName: 'All Parties' }, ...parties]} title="Select Party" placeholder="Search party..." onSelect={p => handlePartySelect(p.PartyID === 'All' ? null : p)} onClose={() => setShowPartyModal(false)} />
+      <SearchableDropdown visible={showOrderModal} data={['All', ...orderNumbers]} isSimple title={`Order No.${selectedParty ? ` — ${selectedParty.PartyName}` : ''}`} placeholder="Search order no..." onSelect={o => handleOrderNoSelect(o === 'All' ? null : o)} onClose={() => setShowOrderModal(false)} />
+      <SearchableDropdown visible={showProductModal} data={[{ ItemCode: 'All', ProductName: 'All Products' }, ...products]} title={`Product${selectedParty ? ` — ${selectedParty.PartyName}` : ''}`} placeholder="Search product..." onSelect={p => handleProductSelect(p.ItemCode === 'All' ? null : p)} onClose={() => setShowProductModal(false)} />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#f5f7fa" },
-  header: {
-    backgroundColor: "#0056b3", flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 14, height: 80, paddingTop: 20, elevation: 4,
-  },
+  safe: { flex: 1, backgroundColor: "#f0f4ff" },
+  header: { backgroundColor: "#0056b3", flexDirection: "row", alignItems: "center", paddingHorizontal: 14, height: 80, paddingTop: 20, elevation: 4 },
   headerBack: { marginRight: 8, padding: 4 },
   headerTitle: { flex: 1, color: "#fff", fontSize: 18, fontWeight: "700" },
-  scroll: { flex: 1 },
-  scrollContent: { padding: 16 },
-  pageTitle: { fontSize: 20, fontWeight: "bold", color: "#1a237e", marginBottom: 16 },
-  cascadeBar: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: '#e3f2fd',
-    borderRadius: 10, padding: 10, marginBottom: 12, gap: 10,
-  },
+  scroll: { flex: 1 }, scrollContent: { padding: 16, gap: 16 },
+  card: { backgroundColor: "#fff", borderRadius: 16, padding: 18, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8 },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#0056b3', marginBottom: 4 },
+  cascadeBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#e3f2fd', borderRadius: 10, padding: 10, marginVertical: 8, gap: 10 },
   cascadeText: { color: '#0056b3', fontSize: 13, fontWeight: '600' },
-  card: {
-    backgroundColor: "#fff", borderRadius: 16, padding: 20, elevation: 3,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8,
-  },
-  row: { flexDirection: "row", gap: 12 },
-  halfCol: { flex: 1 },
-  fieldLabel: {
-    fontSize: 11, fontWeight: "700", color: "#78909c", letterSpacing: 0.8,
-    marginBottom: 8, marginTop: 12, textTransform: "uppercase",
-  },
-  input: {
-    borderWidth: 1.5, borderColor: "#e0e7ef", borderRadius: 10, paddingHorizontal: 12,
-    fontSize: 14, color: "#263238", backgroundColor: "#fafcff", height: 48,
-  },
-  dropdown: {
-    borderWidth: 1.5, borderColor: "#e0e7ef", borderRadius: 10, paddingHorizontal: 12,
-    flexDirection: "row", alignItems: "center", backgroundColor: "#fafcff", height: 48, marginBottom: 4,
-  },
+  row: { flexDirection: "row", gap: 12 }, halfCol: { flex: 1 },
+  fieldLabel: { fontSize: 10, fontWeight: "700", color: "#78909c", letterSpacing: 0.8, marginBottom: 6, marginTop: 12, textTransform: "uppercase" },
+  input: { borderWidth: 1.5, borderColor: "#e0e7ef", borderRadius: 10, paddingHorizontal: 12, fontSize: 14, color: "#263238", backgroundColor: "#fafcff", height: 46 },
+  dropdown: { borderWidth: 1.5, borderColor: "#e0e7ef", borderRadius: 10, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", backgroundColor: "#fafcff", height: 46 },
   dropdownPlaceholder: { flex: 1, fontSize: 14, color: "#b0bec5" },
   dropdownValue: { flex: 1, fontSize: 14, color: "#263238", fontWeight: "500" },
-  checkboxContainer: {
-    flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: "#e0e7ef",
-    borderRadius: 10, paddingHorizontal: 12, height: 48, backgroundColor: "#fafcff",
-  },
+  checkboxContainer: { flexDirection: "row", alignItems: "center", borderWidth: 1.5, borderColor: "#e0e7ef", borderRadius: 10, paddingHorizontal: 12, height: 46, backgroundColor: "#fafcff" },
   checkboxActive: { borderColor: "#0056b3", backgroundColor: "#e3f2fd" },
-  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: "#90a4ae", marginRight: 10 },
-  checkboxInnerActive: { backgroundColor: "#0056b3", borderColor: "#0056b3" },
-  checkboxLabel: { fontSize: 13, color: "#78909c", fontWeight: "600" },
-  checkboxLabelActive: { color: "#0056b3" },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
-  chip: { backgroundColor: '#e3f2fd', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  checkbox: { width: 16, height: 16, borderRadius: 3, borderWidth: 2, borderColor: "#90a4ae", marginRight: 8 },
+  checkboxFilled: { backgroundColor: "#0056b3", borderColor: "#0056b3" },
+  checkboxLabel: { fontSize: 12, color: "#78909c", fontWeight: "600" },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 },
+  chip: { backgroundColor: '#e3f2fd', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 4 },
   chipText: { color: '#0056b3', fontSize: 12, fontWeight: '600' },
-  reportBtn: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    backgroundColor: "#0056b3", borderRadius: 12, paddingVertical: 16, marginTop: 24, elevation: 4,
-  },
-  reportBtnText: { color: "#fff", fontWeight: "800", fontSize: 15, marginLeft: 10 },
+  generateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#0056b3", borderRadius: 12, paddingVertical: 15, marginTop: 20, elevation: 4, gap: 10 },
+  generateBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  resultsCard: { backgroundColor: "#fff", borderRadius: 16, elevation: 3, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8 },
+  resultsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#e8eaf6' },
+  resultsTitle: { fontSize: 16, fontWeight: '800', color: '#0056b3' },
+  resultsCount: { fontSize: 12, color: '#78909c', marginTop: 2 },
+  pdfBtn: { backgroundColor: '#0056b3', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  pdfBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  tableHeader: { flexDirection: 'row', backgroundColor: '#0056b3', paddingVertical: 10, paddingHorizontal: 12 },
+  th: { color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
+  tableRow: { flexDirection: 'row', paddingVertical: 10, paddingHorizontal: 12, borderBottomWidth: 1, borderBottomColor: '#f0f2f5', alignItems: 'center' },
+  td: { fontSize: 12, color: '#37474f' },
+  tdBold: { fontSize: 12, color: '#1a237e', fontWeight: '700' },
+  tdSub: { fontSize: 10, color: '#90a4ae', marginTop: 1 },
+  tdBal: { fontSize: 12, color: '#c62828', fontWeight: '800', textAlign: 'center' },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "70%", padding: 24 },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
@@ -431,5 +409,4 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, marginLeft: 10, fontSize: 15 },
   listItem: { paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#f0f2f5" },
   listItemText: { fontSize: 15, color: "#333", fontWeight: "500" },
-  loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.7)', justifyContent: 'center', alignItems: 'center', zIndex: 1000 },
 });
