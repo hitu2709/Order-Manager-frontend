@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, SafeAreaView, StatusBar, Alert, ActivityIndicator,
@@ -45,8 +45,10 @@ const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placehold
 
 export default function SupplierOrderReportScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
-  const [products, setProducts] = useState([]);
-  const [productGroups, setProductGroups] = useState([]);
+
+  const [allProducts, setAllProducts] = useState([]);
+  const [allGroups, setAllGroups] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
 
   const today = new Date().toISOString().split('T')[0];
   const [fromDate, setFromDate] = useState(today);
@@ -62,15 +64,53 @@ export default function SupplierOrderReportScreen({ navigation }) {
       try {
         const prodData = await fetchProducts();
         const prods = prodData.data || [];
-        setProducts(prods);
-        // Derive unique product groups from products
-        const groups = [...new Map(
-          prods.filter(p => p.Unit).map(p => [p.Unit, { GroupName: p.Unit, GroupCode: p.Unit }])
-        ).values()];
-        setProductGroups(groups);
-      } catch (e) { console.error("Failed to load dropdowns", e); }
+        setAllProducts(prods);
+        setFilteredProducts(prods);
+        // Derive unique product groups from the Unit field
+        const seen = new Set();
+        const groups = [];
+        for (const p of prods) {
+          if (p.Unit && !seen.has(p.Unit)) {
+            seen.add(p.Unit);
+            groups.push({ GroupCode: p.Unit, GroupName: p.Unit });
+          }
+        }
+        setAllGroups(groups.sort((a, b) => a.GroupName.localeCompare(b.GroupName)));
+      } catch (e) { console.error("Failed to load supplier dropdowns", e); }
     })();
   }, []);
+
+  // Group → filter products locally (no backend call needed)
+  const handleGroupSelect = useCallback((group) => {
+    const isAll = !group || group.GroupCode === 'All';
+    setSelectedGroup(isAll ? null : group);
+    setSelectedProduct(null);
+    setShowGroupModal(false);
+    if (isAll) {
+      setFilteredProducts(allProducts);
+    } else {
+      setFilteredProducts(allProducts.filter(p => p.Unit === group.GroupCode));
+    }
+  }, [allProducts]);
+
+  // Product → cascade group (find group of selected product)
+  const handleProductSelect = useCallback((product) => {
+    const isAll = !product || product.ItemCode === 'All';
+    setSelectedProduct(isAll ? null : product);
+    setShowProductModal(false);
+    if (!isAll && product.Unit) {
+      // auto-select the group if product has a group
+      const grp = allGroups.find(g => g.GroupCode === product.Unit);
+      setSelectedGroup(grp || null);
+      setFilteredProducts(allProducts.filter(p => p.Unit === product.Unit));
+    }
+  }, [allGroups, allProducts]);
+
+  const handleReset = () => {
+    setSelectedGroup(null);
+    setSelectedProduct(null);
+    setFilteredProducts(allProducts);
+  };
 
   const handleGenerateReport = async () => {
     setLoading(true);
@@ -88,26 +128,26 @@ export default function SupplierOrderReportScreen({ navigation }) {
       }
     } catch (e) {
       Alert.alert("Error", "Failed to generate supplier order report.");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar backgroundColor="#0056b3" barStyle="light-content" />
-      <View style={[styles.header, { backgroundColor: "#0056b3" }]}>
+      <View style={styles.header}>
         <TouchableOpacity style={styles.headerBack} onPress={() => navigation.goBack()}>
           <Icon name="back" size={22} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Supplier Order Report</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity onPress={handleReset} style={{ padding: 4 }}>
+          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>RESET</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Report Filters</Text>
+
         <SectionCard>
-          {/* Date Row */}
           <View style={styles.row}>
             <View style={styles.halfCol}>
               <FieldLabel label="FROM DATE" />
@@ -119,7 +159,6 @@ export default function SupplierOrderReportScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Product Group */}
           <FieldLabel label="PRODUCT GROUP" />
           <TouchableOpacity style={styles.dropdown} onPress={() => setShowGroupModal(true)}>
             <Text style={selectedGroup ? styles.dropdownValue : styles.dropdownPlaceholder}>
@@ -128,8 +167,7 @@ export default function SupplierOrderReportScreen({ navigation }) {
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          {/* Product */}
-          <FieldLabel label="PRODUCT" />
+          <FieldLabel label={`PRODUCT${selectedGroup ? ` (${filteredProducts.length} available)` : ''}`} />
           <TouchableOpacity style={styles.dropdown} onPress={() => setShowProductModal(true)}>
             <Text style={selectedProduct ? styles.dropdownValue : styles.dropdownPlaceholder}>
               {selectedProduct ? `${selectedProduct.ItemCode} - ${selectedProduct.ProductName}` : "All Products"}
@@ -137,7 +175,14 @@ export default function SupplierOrderReportScreen({ navigation }) {
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.reportBtn, { backgroundColor: "#0056b3" }]} onPress={handleGenerateReport}>
+          {(selectedGroup || selectedProduct) && (
+            <View style={styles.chipRow}>
+              {selectedGroup && <View style={styles.chip}><Text style={styles.chipText}>Group: {selectedGroup.GroupName}</Text></View>}
+              {selectedProduct && <View style={styles.chip}><Text style={styles.chipText}>Product: {selectedProduct.ItemCode}</Text></View>}
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.reportBtn} onPress={handleGenerateReport}>
             <Icon name="reports" size={18} color="#fff" />
             <Text style={styles.reportBtnText}>GENERATE REPORT</Text>
           </TouchableOpacity>
@@ -146,21 +191,22 @@ export default function SupplierOrderReportScreen({ navigation }) {
 
       <SearchableDropdown
         visible={showGroupModal}
-        data={[{ GroupCode: 'All', GroupName: 'All Groups' }, ...productGroups]}
+        data={[{ GroupCode: 'All', GroupName: 'All Groups' }, ...allGroups]}
         title="Select Product Group" placeholder="Search group..."
-        onSelect={(g) => { setSelectedGroup(g.GroupCode === 'All' ? null : g); setShowGroupModal(false); }}
+        onSelect={(g) => handleGroupSelect(g.GroupCode === 'All' ? null : g)}
         onClose={() => setShowGroupModal(false)}
       />
       <SearchableDropdown
         visible={showProductModal}
-        data={[{ ItemCode: 'All', ProductName: 'All Products' }, ...products]}
-        title="Select Product" placeholder="Search product..."
-        onSelect={(p) => { setSelectedProduct(p.ItemCode === 'All' ? null : p); setShowProductModal(false); }}
+        data={[{ ItemCode: 'All', ProductName: 'All Products' }, ...filteredProducts]}
+        title={`Select Product${selectedGroup ? ` (${selectedGroup.GroupName})` : ''}`}
+        placeholder="Search product..."
+        onSelect={(p) => handleProductSelect(p.ItemCode === 'All' ? null : p)}
         onClose={() => setShowProductModal(false)}
       />
 
       {loading && (
-        <View style={styles.loadingOverlay}><ActivityIndicator size="large" color="#e91e63" /></View>
+        <View style={styles.loadingOverlay}><ActivityIndicator size="large" color="#0056b3" /></View>
       )}
     </SafeAreaView>
   );
@@ -168,12 +214,12 @@ export default function SupplierOrderReportScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#f5f7fa" },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, height: 80, paddingTop: 20, elevation: 4 },
+  header: { backgroundColor: "#0056b3", flexDirection: "row", alignItems: "center", paddingHorizontal: 14, height: 80, paddingTop: 20, elevation: 4 },
   headerBack: { marginRight: 8, padding: 4 },
   headerTitle: { flex: 1, color: "#fff", fontSize: 18, fontWeight: "700" },
   scroll: { flex: 1 },
   scrollContent: { padding: 16 },
-  pageTitle: { fontSize: 20, fontWeight: "bold", color: "#1a237e", marginBottom: 20 },
+  pageTitle: { fontSize: 20, fontWeight: "bold", color: "#1a237e", marginBottom: 16 },
   card: { backgroundColor: "#fff", borderRadius: 16, padding: 20, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8 },
   row: { flexDirection: "row", gap: 12 },
   halfCol: { flex: 1 },
@@ -182,7 +228,10 @@ const styles = StyleSheet.create({
   dropdown: { borderWidth: 1.5, borderColor: "#e0e7ef", borderRadius: 10, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", backgroundColor: "#fafcff", height: 48, marginBottom: 4 },
   dropdownPlaceholder: { flex: 1, fontSize: 14, color: "#b0bec5" },
   dropdownValue: { flex: 1, fontSize: 14, color: "#263238", fontWeight: "500" },
-  reportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 12, paddingVertical: 16, marginTop: 30, elevation: 4 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  chip: { backgroundColor: '#e3f2fd', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  chipText: { color: '#0056b3', fontSize: 12, fontWeight: '600' },
+  reportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#0056b3", borderRadius: 12, paddingVertical: 16, marginTop: 24, elevation: 4 },
   reportBtnText: { color: "#fff", fontWeight: "800", fontSize: 15, marginLeft: 10 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "70%", padding: 24 },

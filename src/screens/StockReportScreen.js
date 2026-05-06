@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, SafeAreaView, StatusBar, Alert, ActivityIndicator,
@@ -45,6 +45,10 @@ const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placehold
 
 export default function StockReportScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
+  const [dropdownLoading, setDropdownLoading] = useState(false);
+
+  const [allParties, setAllParties] = useState([]);
+  const [allProducts, setAllProducts] = useState([]);
   const [parties, setParties] = useState([]);
   const [products, setProducts] = useState([]);
 
@@ -62,11 +66,48 @@ export default function StockReportScreen({ navigation }) {
     (async () => {
       try {
         const [pData, prodData] = await Promise.all([fetchParties(), fetchProducts()]);
-        setParties(pData.data || []);
-        setProducts(prodData.data || []);
-      } catch (e) { console.error("Failed to load dropdowns", e); }
+        const p = pData.data || [];
+        const prod = prodData.data || [];
+        setAllParties(p);   setParties(p);
+        setAllProducts(prod); setProducts(prod);
+      } catch (e) { console.error("Failed to load stock dropdowns", e); }
     })();
   }, []);
+
+  // Party → cascade products
+  const handlePartySelect = useCallback(async (party) => {
+    const isAll = !party || party.PartyID === 'All';
+    setSelectedParty(isAll ? null : party);
+    setSelectedProduct(null);
+    setShowPartyModal(false);
+    if (isAll) { setProducts(allProducts); return; }
+    setDropdownLoading(true);
+    try {
+      const prodData = await fetchProducts({ partyId: party.PartyID });
+      setProducts(prodData.data || []);
+    } catch (e) { console.error("Cascade party error", e); }
+    finally { setDropdownLoading(false); }
+  }, [allProducts]);
+
+  // Product → cascade parties (parties that have ordered this product)
+  const handleProductSelect = useCallback(async (product) => {
+    const isAll = !product || product.ItemCode === 'All';
+    setSelectedProduct(isAll ? null : product);
+    setSelectedParty(null);
+    setShowProductModal(false);
+    if (isAll) { setParties(allParties); return; }
+    setDropdownLoading(true);
+    try {
+      const pData = await fetchParties({ productId: product.ItemCode });
+      setParties(pData.data || []);
+    } catch (e) { console.error("Cascade product error", e); }
+    finally { setDropdownLoading(false); }
+  }, [allParties]);
+
+  const handleReset = () => {
+    setSelectedParty(null); setSelectedProduct(null); setIsSummary(false);
+    setParties(allParties); setProducts(allProducts);
+  };
 
   const handleGenerateReport = async () => {
     setLoading(true);
@@ -85,26 +126,33 @@ export default function StockReportScreen({ navigation }) {
       }
     } catch (e) {
       Alert.alert("Error", "Failed to generate stock report.");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar backgroundColor="#0056b3" barStyle="light-content" />
-      <View style={[styles.header, { backgroundColor: "#0056b3" }]}>
+      <View style={styles.header}>
         <TouchableOpacity style={styles.headerBack} onPress={() => navigation.goBack()}>
           <Icon name="back" size={22} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Stock Report</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity onPress={handleReset} style={{ padding: 4 }}>
+          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>RESET</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Report Filters</Text>
+
+        {dropdownLoading && (
+          <View style={styles.cascadeBar}>
+            <ActivityIndicator size="small" color="#0056b3" />
+            <Text style={styles.cascadeText}>Updating filters…</Text>
+          </View>
+        )}
+
         <SectionCard>
-          {/* Date Row */}
           <View style={styles.row}>
             <View style={styles.halfCol}>
               <FieldLabel label="FROM DATE" />
@@ -116,7 +164,6 @@ export default function StockReportScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Party */}
           <FieldLabel label="PARTY NAME" />
           <TouchableOpacity style={styles.dropdown} onPress={() => setShowPartyModal(true)}>
             <Text style={selectedParty ? styles.dropdownValue : styles.dropdownPlaceholder}>
@@ -125,7 +172,6 @@ export default function StockReportScreen({ navigation }) {
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          {/* Product */}
           <FieldLabel label="PRODUCT" />
           <TouchableOpacity style={styles.dropdown} onPress={() => setShowProductModal(true)}>
             <Text style={selectedProduct ? styles.dropdownValue : styles.dropdownPlaceholder}>
@@ -134,8 +180,7 @@ export default function StockReportScreen({ navigation }) {
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          {/* Summary checkbox */}
-          <FieldLabel label="VIEW MODE" />
+          <FieldLabel label="SUMMARY MODE" />
           <TouchableOpacity
             style={[styles.checkboxContainer, isSummary && styles.checkboxActive]}
             onPress={() => setIsSummary(!isSummary)}
@@ -144,7 +189,14 @@ export default function StockReportScreen({ navigation }) {
             <Text style={[styles.checkboxLabel, isSummary && styles.checkboxLabelActive]}>Summary Only</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.reportBtn, { backgroundColor: "#0056b3" }]} onPress={handleGenerateReport}>
+          {(selectedParty || selectedProduct) && (
+            <View style={styles.chipRow}>
+              {selectedParty && <View style={styles.chip}><Text style={styles.chipText}>Party: {selectedParty.PartyName}</Text></View>}
+              {selectedProduct && <View style={styles.chip}><Text style={styles.chipText}>Product: {selectedProduct.ItemCode}</Text></View>}
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.reportBtn} onPress={handleGenerateReport}>
             <Icon name="reports" size={18} color="#fff" />
             <Text style={styles.reportBtnText}>GENERATE REPORT</Text>
           </TouchableOpacity>
@@ -152,20 +204,24 @@ export default function StockReportScreen({ navigation }) {
       </ScrollView>
 
       <SearchableDropdown
-        visible={showPartyModal} data={[{ PartyID: 'All', PartyName: 'All Parties' }, ...parties]}
-        title="Select Party" placeholder="Search party..."
-        onSelect={(p) => { setSelectedParty(p.PartyID === 'All' ? null : p); setShowPartyModal(false); }}
+        visible={showPartyModal}
+        data={[{ PartyID: 'All', PartyName: 'All Parties' }, ...parties]}
+        title={`Select Party${selectedProduct ? ` (${selectedProduct.ItemCode})` : ''}`}
+        placeholder="Search party..."
+        onSelect={(p) => handlePartySelect(p.PartyID === 'All' ? null : p)}
         onClose={() => setShowPartyModal(false)}
       />
       <SearchableDropdown
-        visible={showProductModal} data={[{ ItemCode: 'All', ProductName: 'All Products' }, ...products]}
-        title="Select Product" placeholder="Search product..."
-        onSelect={(p) => { setSelectedProduct(p.ItemCode === 'All' ? null : p); setShowProductModal(false); }}
+        visible={showProductModal}
+        data={[{ ItemCode: 'All', ProductName: 'All Products' }, ...products]}
+        title={`Select Product${selectedParty ? ` (${selectedParty.PartyName})` : ''}`}
+        placeholder="Search product..."
+        onSelect={(p) => handleProductSelect(p.ItemCode === 'All' ? null : p)}
         onClose={() => setShowProductModal(false)}
       />
 
       {loading && (
-        <View style={styles.loadingOverlay}><ActivityIndicator size="large" color="#009688" /></View>
+        <View style={styles.loadingOverlay}><ActivityIndicator size="large" color="#0056b3" /></View>
       )}
     </SafeAreaView>
   );
@@ -173,12 +229,14 @@ export default function StockReportScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#f5f7fa" },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 14, height: 80, paddingTop: 20, elevation: 4 },
+  header: { backgroundColor: "#0056b3", flexDirection: "row", alignItems: "center", paddingHorizontal: 14, height: 80, paddingTop: 20, elevation: 4 },
   headerBack: { marginRight: 8, padding: 4 },
   headerTitle: { flex: 1, color: "#fff", fontSize: 18, fontWeight: "700" },
   scroll: { flex: 1 },
   scrollContent: { padding: 16 },
-  pageTitle: { fontSize: 20, fontWeight: "bold", color: "#1a237e", marginBottom: 20 },
+  pageTitle: { fontSize: 20, fontWeight: "bold", color: "#1a237e", marginBottom: 16 },
+  cascadeBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#e3f2fd', borderRadius: 10, padding: 10, marginBottom: 12, gap: 10 },
+  cascadeText: { color: '#0056b3', fontSize: 13, fontWeight: '600' },
   card: { backgroundColor: "#fff", borderRadius: 16, padding: 20, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8 },
   row: { flexDirection: "row", gap: 12 },
   halfCol: { flex: 1 },
@@ -193,7 +251,10 @@ const styles = StyleSheet.create({
   checkboxInnerActive: { backgroundColor: "#0056b3", borderColor: "#0056b3" },
   checkboxLabel: { fontSize: 13, color: "#78909c", fontWeight: "600" },
   checkboxLabelActive: { color: "#0056b3" },
-  reportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", borderRadius: 12, paddingVertical: 16, marginTop: 30, elevation: 4 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  chip: { backgroundColor: '#e3f2fd', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  chipText: { color: '#0056b3', fontSize: 12, fontWeight: '600' },
+  reportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#0056b3", borderRadius: 12, paddingVertical: 16, marginTop: 24, elevation: 4 },
   reportBtnText: { color: "#fff", fontWeight: "800", fontSize: 15, marginLeft: 10 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "70%", padding: 24 },

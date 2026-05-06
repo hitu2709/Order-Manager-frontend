@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, SafeAreaView, StatusBar, Alert, ActivityIndicator,
   Modal, FlatList,
 } from "react-native";
-import { fetchParties, fetchProducts, fetchOrderNumbers, fetchDispatchReport } from "../services/api";
+import { fetchParties, fetchDispatchNumbers, fetchDispatchProducts, fetchDispatchReport } from "../services/api";
 import Icon from "../components/Icon";
 
 const FieldLabel = ({ label }) => <Text style={styles.fieldLabel}>{label}</Text>;
@@ -47,9 +47,15 @@ const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placehold
 
 export default function DispatchReportScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
+  const [dropdownLoading, setDropdownLoading] = useState(false);
+
+  const [allParties, setAllParties] = useState([]);
+  const [allDispatchNos, setAllDispatchNos] = useState([]);
+  const [allProducts, setAllProducts] = useState([]);
+
   const [parties, setParties] = useState([]);
+  const [dispatchNos, setDispatchNos] = useState([]);
   const [products, setProducts] = useState([]);
-  const [orderNumbers, setOrderNumbers] = useState([]);
 
   const today = new Date().toISOString().split('T')[0];
   const [fromDate, setFromDate] = useState(today);
@@ -65,13 +71,83 @@ export default function DispatchReportScreen({ navigation }) {
   useEffect(() => {
     (async () => {
       try {
-        const [pData, prodData, oNumData] = await Promise.all([fetchParties(), fetchProducts(), fetchOrderNumbers()]);
-        setParties(pData.data || []);
-        setProducts(prodData.data || []);
-        setOrderNumbers(oNumData.data || []);
-      } catch (e) { console.error("Failed to load dropdowns", e); }
+        const [pData, dData, prodData] = await Promise.all([
+          fetchParties(),
+          fetchDispatchNumbers(),
+          fetchDispatchProducts(),
+        ]);
+        const p = pData.data || [];
+        const d = (dData.data || []).map(r => r.Trans_No);
+        const prod = prodData.data || [];
+        setAllParties(p);     setParties(p);
+        setAllDispatchNos(d); setDispatchNos(d);
+        setAllProducts(prod); setProducts(prod);
+      } catch (e) { console.error("Failed to load dispatch dropdowns", e); }
     })();
   }, []);
+
+  // Party → cascade dispatch numbers + products
+  const handlePartySelect = useCallback(async (party) => {
+    const isAll = !party || party.PartyID === 'All';
+    setSelectedParty(isAll ? null : party);
+    setSelectedDispatchNo(null);
+    setSelectedProduct(null);
+    setShowPartyModal(false);
+    if (isAll) {
+      setDispatchNos(allDispatchNos);
+      setProducts(allProducts);
+      return;
+    }
+    setDropdownLoading(true);
+    try {
+      const [dData, prodData] = await Promise.all([
+        fetchDispatchNumbers({ partyId: party.PartyID }),
+        fetchDispatchProducts({ partyId: party.PartyID }),
+      ]);
+      setDispatchNos((dData.data || []).map(r => r.Trans_No));
+      setProducts(prodData.data || []);
+    } catch (e) { console.error("Cascade party error", e); }
+    finally { setDropdownLoading(false); }
+  }, [allDispatchNos, allProducts]);
+
+  // Dispatch No → cascade products
+  const handleDispatchSelect = useCallback(async (dispNo) => {
+    const isAll = !dispNo || dispNo === 'All';
+    setSelectedDispatchNo(isAll ? null : dispNo);
+    setSelectedProduct(null);
+    setShowDispatchModal(false);
+    setDropdownLoading(true);
+    try {
+      const params = {};
+      if (!isAll) params.dispatchNo = dispNo;
+      if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
+      const prodData = await fetchDispatchProducts(Object.keys(params).length ? params : {});
+      setProducts(prodData.data || []);
+    } catch (e) { console.error("Cascade dispatch error", e); }
+    finally { setDropdownLoading(false); }
+  }, [selectedParty]);
+
+  // Product → cascade dispatch numbers
+  const handleProductSelect = useCallback(async (product) => {
+    const isAll = !product || product.ItemCode === 'All';
+    setSelectedProduct(isAll ? null : product);
+    setSelectedDispatchNo(null);
+    setShowProductModal(false);
+    setDropdownLoading(true);
+    try {
+      const params = {};
+      if (!isAll) params.productId = product.ItemCode;
+      if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
+      const dData = await fetchDispatchNumbers(Object.keys(params).length ? params : {});
+      setDispatchNos((dData.data || []).map(r => r.Trans_No));
+    } catch (e) { console.error("Cascade product error", e); }
+    finally { setDropdownLoading(false); }
+  }, [selectedParty]);
+
+  const handleReset = () => {
+    setSelectedParty(null); setSelectedDispatchNo(null); setSelectedProduct(null);
+    setParties(allParties); setDispatchNos(allDispatchNos); setProducts(allProducts);
+  };
 
   const handleGenerateReport = async () => {
     setLoading(true);
@@ -90,9 +166,7 @@ export default function DispatchReportScreen({ navigation }) {
       }
     } catch (e) {
       Alert.alert("Error", "Failed to generate dispatch report.");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   return (
@@ -103,13 +177,22 @@ export default function DispatchReportScreen({ navigation }) {
           <Icon name="back" size={22} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dispatch Report</Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity onPress={handleReset} style={{ padding: 4 }}>
+          <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>RESET</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.pageTitle}>Report Filters</Text>
+
+        {dropdownLoading && (
+          <View style={styles.cascadeBar}>
+            <ActivityIndicator size="small" color="#0056b3" />
+            <Text style={styles.cascadeText}>Updating filters…</Text>
+          </View>
+        )}
+
         <SectionCard>
-          {/* Date Row */}
           <View style={styles.row}>
             <View style={styles.halfCol}>
               <FieldLabel label="FROM DATE" />
@@ -121,7 +204,6 @@ export default function DispatchReportScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Party */}
           <FieldLabel label="PARTY NAME" />
           <TouchableOpacity style={styles.dropdown} onPress={() => setShowPartyModal(true)}>
             <Text style={selectedParty ? styles.dropdownValue : styles.dropdownPlaceholder}>
@@ -130,16 +212,14 @@ export default function DispatchReportScreen({ navigation }) {
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          {/* Dispatch No */}
           <FieldLabel label="DISPATCH NO." />
           <TouchableOpacity style={styles.dropdown} onPress={() => setShowDispatchModal(true)}>
             <Text style={selectedDispatchNo ? styles.dropdownValue : styles.dropdownPlaceholder}>
-              {selectedDispatchNo || "All"}
+              {selectedDispatchNo ? String(selectedDispatchNo) : "All"}
             </Text>
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          {/* Product */}
           <FieldLabel label="PRODUCT" />
           <TouchableOpacity style={styles.dropdown} onPress={() => setShowProductModal(true)}>
             <Text style={selectedProduct ? styles.dropdownValue : styles.dropdownPlaceholder}>
@@ -147,6 +227,14 @@ export default function DispatchReportScreen({ navigation }) {
             </Text>
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
+
+          {(selectedParty || selectedDispatchNo || selectedProduct) && (
+            <View style={styles.chipRow}>
+              {selectedParty && <View style={styles.chip}><Text style={styles.chipText}>Party: {selectedParty.PartyName}</Text></View>}
+              {selectedDispatchNo && <View style={styles.chip}><Text style={styles.chipText}>Dispatch: {selectedDispatchNo}</Text></View>}
+              {selectedProduct && <View style={styles.chip}><Text style={styles.chipText}>Product: {selectedProduct.ItemCode}</Text></View>}
+            </View>
+          )}
 
           <TouchableOpacity style={styles.reportBtn} onPress={handleGenerateReport}>
             <Icon name="reports" size={18} color="#fff" />
@@ -156,21 +244,26 @@ export default function DispatchReportScreen({ navigation }) {
       </ScrollView>
 
       <SearchableDropdown
-        visible={showPartyModal} data={[{ PartyID: 'All', PartyName: 'All Parties' }, ...parties]}
+        visible={showPartyModal}
+        data={[{ PartyID: 'All', PartyName: 'All Parties' }, ...parties]}
         title="Select Party" placeholder="Search party..."
-        onSelect={(p) => { setSelectedParty(p.PartyID === 'All' ? null : p); setShowPartyModal(false); }}
+        onSelect={(p) => handlePartySelect(p.PartyID === 'All' ? null : p)}
         onClose={() => setShowPartyModal(false)}
       />
       <SearchableDropdown
-        visible={showDispatchModal} data={['All', ...orderNumbers]} isSimple={true}
-        title="Select Dispatch No." placeholder="Search dispatch no..."
-        onSelect={(o) => { setSelectedDispatchNo(o === 'All' ? null : o); setShowDispatchModal(false); }}
+        visible={showDispatchModal}
+        data={['All', ...dispatchNos]} isSimple={true}
+        title={`Select Dispatch No.${selectedParty ? ` (${selectedParty.PartyName})` : ''}`}
+        placeholder="Search dispatch no..."
+        onSelect={(o) => handleDispatchSelect(o === 'All' ? null : o)}
         onClose={() => setShowDispatchModal(false)}
       />
       <SearchableDropdown
-        visible={showProductModal} data={[{ ItemCode: 'All', ProductName: 'All Products' }, ...products]}
-        title="Select Product" placeholder="Search product..."
-        onSelect={(p) => { setSelectedProduct(p.ItemCode === 'All' ? null : p); setShowProductModal(false); }}
+        visible={showProductModal}
+        data={[{ ItemCode: 'All', ProductName: 'All Products' }, ...products]}
+        title={`Select Product${selectedParty ? ` (${selectedParty.PartyName})` : ''}`}
+        placeholder="Search product..."
+        onSelect={(p) => handleProductSelect(p.ItemCode === 'All' ? null : p)}
         onClose={() => setShowProductModal(false)}
       />
 
@@ -188,7 +281,9 @@ const styles = StyleSheet.create({
   headerTitle: { flex: 1, color: "#fff", fontSize: 18, fontWeight: "700" },
   scroll: { flex: 1 },
   scrollContent: { padding: 16 },
-  pageTitle: { fontSize: 20, fontWeight: "bold", color: "#1a237e", marginBottom: 20 },
+  pageTitle: { fontSize: 20, fontWeight: "bold", color: "#1a237e", marginBottom: 16 },
+  cascadeBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#e3f2fd', borderRadius: 10, padding: 10, marginBottom: 12, gap: 10 },
+  cascadeText: { color: '#0056b3', fontSize: 13, fontWeight: '600' },
   card: { backgroundColor: "#fff", borderRadius: 16, padding: 20, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 8 },
   row: { flexDirection: "row", gap: 12 },
   halfCol: { flex: 1 },
@@ -197,7 +292,10 @@ const styles = StyleSheet.create({
   dropdown: { borderWidth: 1.5, borderColor: "#e0e7ef", borderRadius: 10, paddingHorizontal: 12, flexDirection: "row", alignItems: "center", backgroundColor: "#fafcff", height: 48, marginBottom: 4 },
   dropdownPlaceholder: { flex: 1, fontSize: 14, color: "#b0bec5" },
   dropdownValue: { flex: 1, fontSize: 14, color: "#263238", fontWeight: "500" },
-  reportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#0056b3", borderRadius: 12, paddingVertical: 16, marginTop: 30, elevation: 4 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  chip: { backgroundColor: '#e3f2fd', borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5 },
+  chipText: { color: '#0056b3', fontSize: 12, fontWeight: '600' },
+  reportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#0056b3", borderRadius: 12, paddingVertical: 16, marginTop: 24, elevation: 4 },
   reportBtnText: { color: "#fff", fontWeight: "800", fontSize: 15, marginLeft: 10 },
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "70%", padding: 24 },

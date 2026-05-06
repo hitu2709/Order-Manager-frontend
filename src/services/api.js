@@ -121,6 +121,18 @@ export const fetchDispatchReport = async (filters) => {
   return response.data;
 };
 
+// Fetch dispatch numbers for cascading dropdown — pass optional {partyId, productId}
+export const fetchDispatchNumbers = async (filters = {}) => {
+  const response = await apiClient.get('/api/reports/dispatch-numbers', { params: filters });
+  return response.data;
+};
+
+// Fetch products that appear in dispatches — pass optional {partyId, dispatchNo}
+export const fetchDispatchProducts = async (filters = {}) => {
+  const response = await apiClient.get('/api/reports/dispatch-products', { params: filters });
+  return response.data;
+};
+
 // Fetch stock report
 export const fetchStockReport = async (filters) => {
   const response = await apiClient.get('/api/reports/stock', { params: filters });
