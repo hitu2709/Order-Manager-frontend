@@ -68,15 +68,15 @@ export const updateOrder = async (id, orderData) => {
   return response.data;
 };
 
-// Fetch parties for dropdown
-export const fetchParties = async () => {
-  const response = await apiClient.get('/api/orders/parties');
+// Fetch parties for dropdown — pass optional {orderNo, productId} to cascade
+export const fetchParties = async (filters = {}) => {
+  const response = await apiClient.get('/api/orders/parties', { params: filters });
   return response.data;
 };
 
-// Fetch products for dropdown
-export const fetchProducts = async () => {
-  const response = await apiClient.get('/api/orders/products');
+// Fetch products for dropdown — pass optional {partyId, orderNo} to cascade
+export const fetchProducts = async (filters = {}) => {
+  const response = await apiClient.get('/api/orders/products', { params: filters });
   return response.data;
 };
 
@@ -104,9 +104,9 @@ export const fetchPendingOrderReport = async (filters) => {
   return response.data;
 };
 
-// Fetch order numbers for dropdown
-export const fetchOrderNumbers = async () => {
-  const response = await apiClient.get('/api/orders/numbers');
+// Fetch order numbers for report dropdown — pass optional {partyId, productId} to cascade
+export const fetchOrderNumbers = async (filters = {}) => {
+  const response = await apiClient.get('/api/orders/numbers', { params: filters });
   return response.data;
 };
 
