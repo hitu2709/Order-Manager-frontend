@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,7 +15,9 @@ import {
   Modal,
   FlatList,
   Dimensions,
+  BackHandler,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { createOrder, updateOrder, fetchParties, fetchProducts, fetchSalesmen } from "../services/api";
 
@@ -173,6 +175,41 @@ export default function CreateOrderScreen({ navigation, route }) {
   // QR/Barcode Scanner
   const [showScanner, setShowScanner] = useState(false);
   const scrollRef = React.useRef(null);
+
+  // ── Discard confirmation ───────────────────────────────────────────────────
+  const hasUnsavedData = () => {
+    return selectedParty !== null || productsList.length > 0 || notes.trim() !== '';
+  };
+
+  const handleBackPress = () => {
+    if (!hasUnsavedData()) {
+      navigation.goBack();
+      return true;
+    }
+    Alert.alert(
+      'Discard Order?',
+      'You have unsaved changes. Are you sure you want to go back? All entered data will be lost.',
+      [
+        { text: 'Stay', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => navigation.goBack(),
+        },
+      ],
+      { cancelable: true }
+    );
+    return true; // prevent default back behaviour
+  };
+
+  // Intercept Android hardware back button
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', handleBackPress);
+      return () => sub.remove();
+    }, [selectedParty, productsList, notes])
+  );
+
   const productSectionY = React.useRef(0);
 
   // Inline product editing
@@ -489,7 +526,7 @@ export default function CreateOrderScreen({ navigation, route }) {
       <StatusBar backgroundColor="#0056b3" barStyle="light-content" />
 
       <View style={styles.header}>
-        <TouchableOpacity style={styles.headerBack} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.headerBack} onPress={handleBackPress}>
           <Icon name="back" size={22} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{isEditMode ? "Edit Order" : "Create Order"}</Text>
