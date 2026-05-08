@@ -53,9 +53,10 @@ const buildPdfHtml = (data, filters) => {
   const now = new Date().toLocaleString("en-IN");
   const rows = data.map((r, i) => `
     <tr style="background:${i % 2 === 0 ? '#f8faff' : '#fff'}">
-      <td>${r.VouchNo || r.OrderNo || r.OrderID || '-'}</td>
+      <td>${r.VouchNo || r.OrderNo || '-'}</td>
       <td>${r.OrderDate || r.trans_dt || '-'}</td>
       <td>${r.PartyName || r.CustomerName || '-'}</td>
+      <td>${r.ItemCode ? `<b>${r.ItemCode}</b><br/><small>${r.ProductName || ''}</small>` : '-'}</td>
       <td style="text-align:center">${r.OrderQty ?? r.TotalQty ?? '-'}</td>
       <td style="text-align:center">${r.DispatchQty ?? r.DesptchQty ?? 0}</td>
       <td style="text-align:center;color:#d32f2f;font-weight:700">${r.BalQty ?? '-'}</td>
@@ -73,9 +74,9 @@ const buildPdfHtml = (data, filters) => {
     .meta{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
     .meta-box{background:#e3f2fd;border-radius:8px;padding:10px 16px;font-size:12px;}
     .meta-box b{display:block;color:#0056b3;font-size:14px;margin-top:2px;}
-    table{width:100%;border-collapse:collapse;font-size:13px;}
-    th{background:#0056b3;color:#fff;padding:10px 8px;text-align:left;font-size:12px;letter-spacing:.5px;}
-    td{padding:9px 8px;border-bottom:1px solid #e8eaf6;}
+    table{width:100%;border-collapse:collapse;font-size:12px;}
+    th{background:#0056b3;color:#fff;padding:8px 6px;text-align:left;font-size:11px;letter-spacing:.5px;}
+    td{padding:7px 6px;border-bottom:1px solid #e8eaf6;vertical-align:top;}
     .footer{margin-top:18px;text-align:right;font-size:12px;color:#555;}
     .total-row{background:#e3f2fd!important;font-weight:700;}
     .badge{display:inline-block;background:#0056b3;color:#fff;border-radius:20px;padding:2px 12px;font-size:11px;}
@@ -87,20 +88,20 @@ const buildPdfHtml = (data, filters) => {
   <div class="meta">
     <div class="meta-box">Period<b>${filters.fromDate} → ${filters.toDate}</b></div>
     <div class="meta-box">Party<b>${filters.partyName || 'All Parties'}</b></div>
-    <div class="meta-box">Order No.<b>${filters.orderNo !== 'All' ? filters.orderNo : 'All'}</b></div>
+    <div class="meta-box">Order No.<b>${filters.orderLabel || 'All'}</b></div>
     <div class="meta-box">Product<b>${filters.productName || 'All Products'}</b></div>
     <div class="meta-box">Records<b><span class="badge">${data.length}</span></b></div>
   </div>
   <table>
     <thead><tr>
-      <th>Order No.</th><th>Date</th><th>Party Name</th>
+      <th>Order No.</th><th>Date</th><th>Party Name</th><th>Item</th>
       <th style="text-align:center">Ord Qty</th>
       <th style="text-align:center">Disp Qty</th>
       <th style="text-align:center">Bal Qty</th>
     </tr></thead>
     <tbody>${rows}
     <tr class="total-row">
-      <td colspan="5" style="text-align:right;padding-right:12px">TOTAL BALANCE</td>
+      <td colspan="6" style="text-align:right;padding-right:12px">TOTAL BALANCE</td>
       <td style="text-align:center;color:#d32f2f">${totalBal.toFixed(0)}</td>
     </tr>
     </tbody>
@@ -158,13 +159,16 @@ export default function PendingReportScreen({ navigation }) {
     } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
   }, [allOrderNumbers, allProducts]);
 
-  const handleOrderNoSelect = useCallback(async (orderNo) => {
-    const isAll = !orderNo || orderNo === 'All';
-    setSelectedOrderNo(isAll ? null : orderNo); setSelectedProduct(null);
+  const handleOrderNoSelect = useCallback(async (order) => {
+    // order is now an object {trans_no, VouchNo, trans_dt} or null for All
+    const isAll = !order || order.trans_no === 'All';
+    setSelectedOrderNo(isAll ? null : order); setSelectedProduct(null);
     setShowOrderModal(false); setReportData(null);
     setDropdownLoading(true);
     try {
-      const params = {}; if (!isAll) params.orderNo = orderNo; if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
+      const params = {};
+      if (!isAll) params.orderNo = order.trans_no;
+      if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
       const prD = await fetchProducts(Object.keys(params).length ? params : {});
       setProducts(prD.data || []);
     } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
@@ -194,7 +198,7 @@ export default function PendingReportScreen({ navigation }) {
       const res = await fetchPendingOrderReport({
         fromDate, toDate,
         partyId: selectedParty?.PartyID || 'All',
-        orderNo: selectedOrderNo || 'All',
+        orderNo: selectedOrderNo?.trans_no || 'All',
         productId: selectedProduct?.ItemCode || 'All',
         pendingOnly: isPendingOnly,
       });
@@ -214,7 +218,7 @@ export default function PendingReportScreen({ navigation }) {
       const html = buildPdfHtml(reportData, {
         fromDate, toDate,
         partyName: selectedParty?.PartyName,
-        orderNo: selectedOrderNo || 'All',
+        orderLabel: selectedOrderNo ? `${selectedOrderNo.trans_dt}(${selectedOrderNo.VouchNo})` : 'All',
         productName: selectedProduct ? `${selectedProduct.ItemCode} - ${selectedProduct.ProductName}` : null,
       });
       const { uri } = await Print.printToFileAsync({ html, base64: false });
@@ -271,7 +275,9 @@ export default function PendingReportScreen({ navigation }) {
             <View style={styles.halfCol}>
               <FieldLabel label="ORDER NO." />
               <TouchableOpacity style={styles.dropdown} onPress={() => setShowOrderModal(true)}>
-                <Text style={selectedOrderNo ? styles.dropdownValue : styles.dropdownPlaceholder}>{selectedOrderNo || "All"}</Text>
+                <Text style={selectedOrderNo ? styles.dropdownValue : styles.dropdownPlaceholder}>
+                  {selectedOrderNo ? `${selectedOrderNo.trans_dt}(${selectedOrderNo.VouchNo})` : "All"}
+                </Text>
                 <Icon name="chevron" size={16} color="#90a4ae" />
               </TouchableOpacity>
             </View>
@@ -293,7 +299,7 @@ export default function PendingReportScreen({ navigation }) {
           {(selectedParty || selectedOrderNo || selectedProduct) && (
             <View style={styles.chipRow}>
               {selectedParty && <View style={styles.chip}><Text style={styles.chipText}>{selectedParty.PartyName}</Text></View>}
-              {selectedOrderNo && <View style={styles.chip}><Text style={styles.chipText}>Order: {selectedOrderNo}</Text></View>}
+              {selectedOrderNo && <View style={styles.chip}><Text style={styles.chipText}>Order: {selectedOrderNo.trans_dt}({selectedOrderNo.VouchNo})</Text></View>}
               {selectedProduct && <View style={styles.chip}><Text style={styles.chipText}>{selectedProduct.ItemCode}</Text></View>}
             </View>
           )}
@@ -324,38 +330,70 @@ export default function PendingReportScreen({ navigation }) {
             {/* Table header */}
             <View style={styles.tableHeader}>
               <Text style={[styles.th, { flex: 1 }]}>Order</Text>
-              <Text style={[styles.th, { flex: 1.4 }]}>Party</Text>
-              <Text style={[styles.th, { flex: 0.8, textAlign: 'center' }]}>Ord</Text>
-              <Text style={[styles.th, { flex: 0.8, textAlign: 'center' }]}>Disp</Text>
-              <Text style={[styles.th, { flex: 0.8, textAlign: 'center' }]}>Bal</Text>
+              <Text style={[styles.th, { flex: 1.2 }]}>Party</Text>
+              <Text style={[styles.th, { flex: 1.2 }]}>Item</Text>
+              <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Ord</Text>
+              <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Disp</Text>
+              <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Bal</Text>
             </View>
 
             {reportData.map((r, i) => (
               <View key={i} style={[styles.tableRow, i % 2 === 0 && { backgroundColor: '#f8faff' }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.tdBold}>{r.VouchNo || r.OrderNo || r.OrderID}</Text>
+                  <Text style={styles.tdBold}>{r.VouchNo || r.OrderNo}</Text>
                   <Text style={styles.tdSub}>{r.OrderDate || r.trans_dt}</Text>
                 </View>
-                <Text style={[styles.td, { flex: 1.4 }]} numberOfLines={2}>{r.PartyName || r.CustomerName}</Text>
-                <Text style={[styles.td, { flex: 0.8, textAlign: 'center' }]}>{r.OrderQty ?? r.TotalQty ?? '-'}</Text>
-                <Text style={[styles.td, { flex: 0.8, textAlign: 'center' }]}>{r.DispatchQty ?? r.DesptchQty ?? 0}</Text>
-                <Text style={[styles.tdBal, { flex: 0.8 }]}>{r.BalQty ?? '-'}</Text>
+                <Text style={[styles.td, { flex: 1.2 }]} numberOfLines={2}>{r.PartyName || r.CustomerName}</Text>
+                <View style={{ flex: 1.2 }}>
+                  <Text style={styles.tdBold} numberOfLines={1}>{r.ItemCode || '-'}</Text>
+                  <Text style={styles.tdSub} numberOfLines={2}>{r.ProductName}</Text>
+                </View>
+                <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.OrderQty ?? '-'}</Text>
+                <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.DispatchQty ?? 0}</Text>
+                <Text style={[styles.tdBal, { flex: 0.7 }]}>{r.BalQty ?? '-'}</Text>
               </View>
             ))}
 
             {/* Totals row */}
             <View style={[styles.tableRow, { backgroundColor: '#e3f2fd' }]}>
-              <Text style={[styles.tdBold, { flex: 2.4 }]}>TOTAL</Text>
-              <Text style={[styles.td, { flex: 0.8, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.OrderQty ?? r.TotalQty) || 0), 0).toFixed(0)}</Text>
-              <Text style={[styles.td, { flex: 0.8, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.DispatchQty ?? r.DesptchQty) || 0), 0).toFixed(0)}</Text>
-              <Text style={[styles.tdBal, { flex: 0.8, fontSize: 14 }]}>{reportData.reduce((s, r) => s + (parseFloat(r.BalQty) || 0), 0).toFixed(0)}</Text>
+              <Text style={[styles.tdBold, { flex: 3.4 }]}>TOTAL</Text>
+              <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.OrderQty) || 0), 0).toFixed(0)}</Text>
+              <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0).toFixed(0)}</Text>
+              <Text style={[styles.tdBal, { flex: 0.7, fontSize: 14 }]}>{reportData.reduce((s, r) => s + (parseFloat(r.BalQty) || 0), 0).toFixed(0)}</Text>
             </View>
           </View>
         )}
       </ScrollView>
 
       <SearchableDropdown visible={showPartyModal} data={[{ PartyID: 'All', PartyName: 'All Parties' }, ...parties]} title="Select Party" placeholder="Search party..." onSelect={p => handlePartySelect(p.PartyID === 'All' ? null : p)} onClose={() => setShowPartyModal(false)} />
-      <SearchableDropdown visible={showOrderModal} data={['All', ...orderNumbers]} isSimple title={`Order No.${selectedParty ? ` — ${selectedParty.PartyName}` : ''}`} placeholder="Search order no..." onSelect={o => handleOrderNoSelect(o === 'All' ? null : o)} onClose={() => setShowOrderModal(false)} />
+
+      {/* Order No. modal — custom rendering since data is now objects */}
+      <Modal visible={showOrderModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{`Order No.${selectedParty ? ` — ${selectedParty.PartyName}` : ''}`}</Text>
+              <TouchableOpacity onPress={() => setShowOrderModal(false)}><Text style={styles.closeText}>Cancel</Text></TouchableOpacity>
+            </View>
+            <FlatList
+              data={[{ trans_no: 'All', VouchNo: 'All', trans_dt: '' }, ...orderNumbers]}
+              keyExtractor={(_, i) => i.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.listItem} onPress={() => handleOrderNoSelect(item.trans_no === 'All' ? null : item)}>
+                  {item.trans_no === 'All'
+                    ? <Text style={styles.listItemText}>All</Text>
+                    : <View>
+                        <Text style={styles.listItemText}>{item.trans_dt}({item.VouchNo})</Text>
+                        <Text style={{ fontSize: 11, color: '#90a4ae', marginTop: 2 }}>Order No: {item.trans_no}</Text>
+                      </View>
+                  }
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
       <SearchableDropdown visible={showProductModal} data={[{ ItemCode: 'All', ProductName: 'All Products' }, ...products]} title={`Product${selectedParty ? ` — ${selectedParty.PartyName}` : ''}`} placeholder="Search product..." onSelect={p => handleProductSelect(p.ItemCode === 'All' ? null : p)} onClose={() => setShowProductModal(false)} />
     </SafeAreaView>
   );
