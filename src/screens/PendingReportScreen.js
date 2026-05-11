@@ -203,17 +203,6 @@ export default function PendingReportScreen({ navigation }) {
     } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
   }, [tempOrderNos, selectedParty, allProducts]);
 
-  const handleProductSelect = useCallback(async (product) => {
-    const isAll = !product || product.ItemCode === 'All';
-    setSelectedProduct(isAll ? null : product); setSelectedOrderNo(null);
-    setShowProductModal(false); setReportData(null);
-    setDropdownLoading(true);
-    try {
-      const params = {}; if (!isAll) params.productId = product.ItemCode; if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
-      const oD = await fetchOrderNumbers(Object.keys(params).length ? params : {});
-      setOrderNumbers(oD.data || []);
-    } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
-  }, [selectedParty]);
 
   const handleProductSelect = useCallback(async (product) => {
     const isAll = !product || product.ItemCode === 'All';
@@ -497,6 +486,7 @@ export default function PendingReportScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
 
       <SearchableDropdown visible={showProductModal} data={[{ ItemCode: 'All', ProductName: 'All Products' }, ...products]} title={`Product${selectedParty ? ` — ${selectedParty.PartyName}` : ''}`} placeholder="Search product..." onSelect={p => handleProductSelect(p.ItemCode === 'All' ? null : p)} onClose={() => setShowProductModal(false)} />
 
