@@ -2,14 +2,23 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView,
   StyleSheet, SafeAreaView, StatusBar, Alert, ActivityIndicator,
-  Modal, FlatList,
+  Modal, FlatList, Platform,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import {
   fetchParties, fetchProducts, fetchOrderNumbers, fetchPendingOrderReport
 } from "../services/api";
 import Icon from "../components/Icon";
+
+// Format Date → YYYY-MM-DD for API, DD/MM/YYYY for display
+const toApiDate  = (d) => d.toISOString().split('T')[0];
+const toDisplay  = (d) => {
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+};
 
 const FieldLabel = ({ label }) => <Text style={styles.fieldLabel}>{label}</Text>;
 
@@ -123,16 +132,24 @@ export default function PendingReportScreen({ navigation }) {
   const [products, setProducts] = useState([]);
   const [orderNumbers, setOrderNumbers] = useState([]);
 
-  const today = new Date().toISOString().split('T')[0];
+  // Dates
+  const today = new Date();
   const [fromDate, setFromDate] = useState(today);
-  const [toDate, setToDate] = useState(today);
-  const [selectedParty, setSelectedParty] = useState(null);
-  const [selectedOrderNo, setSelectedOrderNo] = useState(null);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [isPendingOnly, setIsPendingOnly] = useState(true);
+  const [toDate, setToDate]     = useState(today);
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker,   setShowToPicker]   = useState(false);
 
-  const [showPartyModal, setShowPartyModal] = useState(false);
-  const [showOrderModal, setShowOrderModal] = useState(false);
+  // Filters
+  const [selectedParty,    setSelectedParty]    = useState(null);
+  const [selectedOrderNos, setSelectedOrderNos] = useState([]);   // ← now an array
+  const [selectedProduct,  setSelectedProduct]  = useState(null);
+  const [isPendingOnly,    setIsPendingOnly]    = useState(true);
+
+  // Temp selection inside the multi-select order modal
+  const [tempOrderNos, setTempOrderNos] = useState([]);
+
+  const [showPartyModal,   setShowPartyModal]   = useState(false);
+  const [showOrderModal,   setShowOrderModal]   = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
 
   useEffect(() => {
@@ -149,30 +166,42 @@ export default function PendingReportScreen({ navigation }) {
 
   const handlePartySelect = useCallback(async (party) => {
     const isAll = !party || party.PartyID === 'All';
-    setSelectedParty(isAll ? null : party); setSelectedOrderNo(null); setSelectedProduct(null);
+    setSelectedParty(isAll ? null : party);
+    setSelectedOrderNos([]); setSelectedProduct(null);
     setShowPartyModal(false); setReportData(null);
     if (isAll) { setOrderNumbers(allOrderNumbers); setProducts(allProducts); return; }
     setDropdownLoading(true);
     try {
-      const [oD, prD] = await Promise.all([fetchOrderNumbers({ partyId: party.PartyID }), fetchProducts({ partyId: party.PartyID })]);
+      const [oD, prD] = await Promise.all([
+        fetchOrderNumbers({ partyId: party.PartyID }),
+        fetchProducts({ partyId: party.PartyID }),
+      ]);
       setOrderNumbers(oD.data || []); setProducts(prD.data || []);
     } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
   }, [allOrderNumbers, allProducts]);
 
-  const handleOrderNoSelect = useCallback(async (order) => {
-    // order is now an object {trans_no, VouchNo, trans_dt} or null for All
-    const isAll = !order || order.trans_no === 'All';
-    setSelectedOrderNo(isAll ? null : order); setSelectedProduct(null);
+  // Toggle a single order in/out of the temp selection list
+  const toggleOrderNo = useCallback((order) => {
+    setTempOrderNos(prev => {
+      const exists = prev.some(o => o.trans_no === order.trans_no);
+      return exists ? prev.filter(o => o.trans_no !== order.trans_no) : [...prev, order];
+    });
+  }, []);
+
+  // Confirm multi-select and cascade product list
+  const confirmOrderSelection = useCallback(async () => {
+    setSelectedOrderNos(tempOrderNos);
     setShowOrderModal(false); setReportData(null);
+    if (tempOrderNos.length === 0) { setProducts(allProducts); return; }
     setDropdownLoading(true);
     try {
-      const params = {};
-      if (!isAll) params.orderNo = order.trans_no;
+      // Use first selected order to narrow products (server supports single orderNo)
+      const params = { orderNo: tempOrderNos[0].trans_no };
       if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
-      const prD = await fetchProducts(Object.keys(params).length ? params : {});
+      const prD = await fetchProducts(params);
       setProducts(prD.data || []);
     } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
-  }, [selectedParty]);
+  }, [tempOrderNos, selectedParty, allProducts]);
 
   const handleProductSelect = useCallback(async (product) => {
     const isAll = !product || product.ItemCode === 'All';
@@ -186,19 +215,41 @@ export default function PendingReportScreen({ navigation }) {
     } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
   }, [selectedParty]);
 
+  const handleProductSelect = useCallback(async (product) => {
+    const isAll = !product || product.ItemCode === 'All';
+    setSelectedProduct(isAll ? null : product);
+    setSelectedOrderNos([]);
+    setShowProductModal(false); setReportData(null);
+    setDropdownLoading(true);
+    try {
+      const params = {};
+      if (!isAll) params.productId = product.ItemCode;
+      if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
+      const oD = await fetchOrderNumbers(Object.keys(params).length ? params : {});
+      setOrderNumbers(oD.data || []);
+    } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
+  }, [selectedParty]);
+
   const handleReset = () => {
-    setSelectedParty(null); setSelectedOrderNo(null); setSelectedProduct(null);
+    setSelectedParty(null); setSelectedOrderNos([]); setSelectedProduct(null);
+    setTempOrderNos([]);
     setParties(allParties); setOrderNumbers(allOrderNumbers); setProducts(allProducts);
+    setFromDate(new Date()); setToDate(new Date());
     setIsPendingOnly(true); setReportData(null);
   };
 
   const handleGenerateReport = async () => {
     setLoading(true); setReportData(null);
     try {
+      // Pass comma-separated trans_nos for multi-select
+      const orderNoParam = selectedOrderNos.length > 0
+        ? selectedOrderNos.map(o => o.trans_no).join(',')
+        : 'All';
       const res = await fetchPendingOrderReport({
-        fromDate, toDate,
-        partyId: selectedParty?.PartyID || 'All',
-        orderNo: selectedOrderNo?.trans_no || 'All',
+        fromDate: toApiDate(fromDate),
+        toDate:   toApiDate(toDate),
+        partyId:  selectedParty?.PartyID || 'All',
+        orderNo:  orderNoParam,
         productId: selectedProduct?.ItemCode || 'All',
         pendingOnly: isPendingOnly,
       });
@@ -215,10 +266,14 @@ export default function PendingReportScreen({ navigation }) {
     if (!reportData) return;
     setPdfLoading(true);
     try {
+      const orderLabel = selectedOrderNos.length > 0
+        ? selectedOrderNos.map(o => `${o.trans_dt}(${o.VouchNo})`).join(', ')
+        : 'All';
       const html = buildPdfHtml(reportData, {
-        fromDate, toDate,
+        fromDate: toDisplay(fromDate),
+        toDate:   toDisplay(toDate),
         partyName: selectedParty?.PartyName,
-        orderLabel: selectedOrderNo ? `${selectedOrderNo.trans_dt}(${selectedOrderNo.VouchNo})` : 'All',
+        orderLabel,
         productName: selectedProduct ? `${selectedProduct.ItemCode} - ${selectedProduct.ProductName}` : null,
       });
       const { uri } = await Print.printToFileAsync({ html, base64: false });
@@ -257,11 +312,35 @@ export default function PendingReportScreen({ navigation }) {
           <View style={styles.row}>
             <View style={styles.halfCol}>
               <FieldLabel label="FROM DATE" />
-              <TextInput style={styles.input} value={fromDate} onChangeText={v => { setFromDate(v); setReportData(null); }} placeholder="YYYY-MM-DD" />
+              <TouchableOpacity style={styles.dateBtn} onPress={() => { setShowFromPicker(true); setReportData(null); }}>
+                <Icon name="calendar" size={15} color="#0056b3" />
+                <Text style={styles.dateBtnText}>{toDisplay(fromDate)}</Text>
+              </TouchableOpacity>
+              {showFromPicker && (
+                <DateTimePicker
+                  value={fromDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                  onChange={(_, d) => { setShowFromPicker(Platform.OS === 'ios'); if (d) setFromDate(d); }}
+                  maximumDate={toDate}
+                />
+              )}
             </View>
             <View style={styles.halfCol}>
               <FieldLabel label="TILL DATE" />
-              <TextInput style={styles.input} value={toDate} onChangeText={v => { setToDate(v); setReportData(null); }} placeholder="YYYY-MM-DD" />
+              <TouchableOpacity style={styles.dateBtn} onPress={() => { setShowToPicker(true); setReportData(null); }}>
+                <Icon name="calendar" size={15} color="#0056b3" />
+                <Text style={styles.dateBtnText}>{toDisplay(toDate)}</Text>
+              </TouchableOpacity>
+              {showToPicker && (
+                <DateTimePicker
+                  value={toDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'inline' : 'calendar'}
+                  onChange={(_, d) => { setShowToPicker(Platform.OS === 'ios'); if (d) setToDate(d); }}
+                  minimumDate={fromDate}
+                />
+              )}
             </View>
           </View>
 
@@ -274,9 +353,9 @@ export default function PendingReportScreen({ navigation }) {
           <View style={styles.row}>
             <View style={styles.halfCol}>
               <FieldLabel label="ORDER NO." />
-              <TouchableOpacity style={styles.dropdown} onPress={() => setShowOrderModal(true)}>
-                <Text style={selectedOrderNo ? styles.dropdownValue : styles.dropdownPlaceholder}>
-                  {selectedOrderNo ? `${selectedOrderNo.trans_dt}(${selectedOrderNo.VouchNo})` : "All"}
+              <TouchableOpacity style={styles.dropdown} onPress={() => { setTempOrderNos(selectedOrderNos); setShowOrderModal(true); }}>
+                <Text style={selectedOrderNos.length > 0 ? styles.dropdownValue : styles.dropdownPlaceholder}>
+                  {selectedOrderNos.length > 0 ? `${selectedOrderNos.length} order(s) selected` : 'All Orders'}
                 </Text>
                 <Icon name="chevron" size={16} color="#90a4ae" />
               </TouchableOpacity>
@@ -296,10 +375,14 @@ export default function PendingReportScreen({ navigation }) {
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          {(selectedParty || selectedOrderNo || selectedProduct) && (
+          {(selectedParty || selectedOrderNos.length > 0 || selectedProduct) && (
             <View style={styles.chipRow}>
               {selectedParty && <View style={styles.chip}><Text style={styles.chipText}>{selectedParty.PartyName}</Text></View>}
-              {selectedOrderNo && <View style={styles.chip}><Text style={styles.chipText}>Order: {selectedOrderNo.trans_dt}({selectedOrderNo.VouchNo})</Text></View>}
+              {selectedOrderNos.map(o => (
+                <View key={o.trans_no} style={styles.chip}>
+                  <Text style={styles.chipText}>{o.trans_dt}({o.VouchNo})</Text>
+                </View>
+              ))}
               {selectedProduct && <View style={styles.chip}><Text style={styles.chipText}>{selectedProduct.ItemCode}</Text></View>}
             </View>
           )}
@@ -367,34 +450,56 @@ export default function PendingReportScreen({ navigation }) {
 
       <SearchableDropdown visible={showPartyModal} data={[{ PartyID: 'All', PartyName: 'All Parties' }, ...parties]} title="Select Party" placeholder="Search party..." onSelect={p => handlePartySelect(p.PartyID === 'All' ? null : p)} onClose={() => setShowPartyModal(false)} />
 
-      {/* Order No. modal — custom rendering since data is now objects */}
+      {/* Order No. multi-select modal */}
       <Modal visible={showOrderModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{`Order No.${selectedParty ? ` — ${selectedParty.PartyName}` : ''}`}</Text>
-              <TouchableOpacity onPress={() => setShowOrderModal(false)}><Text style={styles.closeText}>Cancel</Text></TouchableOpacity>
+              <Text style={styles.modalTitle}>{`Orders${selectedParty ? ` — ${selectedParty.PartyName}` : ''}`}</Text>
+              <TouchableOpacity onPress={() => setShowOrderModal(false)}>
+                <Text style={styles.closeText}>Cancel</Text>
+              </TouchableOpacity>
             </View>
-            <FlatList
-              data={[{ trans_no: 'All', VouchNo: 'All', trans_dt: '' }, ...orderNumbers]}
-              keyExtractor={(_, i) => i.toString()}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.listItem} onPress={() => handleOrderNoSelect(item.trans_no === 'All' ? null : item)}>
-                  {item.trans_no === 'All'
-                    ? <Text style={styles.listItemText}>All</Text>
-                    : <View>
-                        <Text style={styles.listItemText}>{item.trans_dt}({item.VouchNo})</Text>
-                        <Text style={{ fontSize: 11, color: '#90a4ae', marginTop: 2 }}>Order No: {item.trans_no}</Text>
-                      </View>
-                  }
+
+            {/* Selection counter */}
+            {tempOrderNos.length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#e3f2fd', borderRadius: 10, padding: 10, marginBottom: 12 }}>
+                <Text style={{ color: '#0056b3', fontWeight: '700', flex: 1 }}>{tempOrderNos.length} order(s) selected</Text>
+                <TouchableOpacity onPress={() => setTempOrderNos([])}>
+                  <Text style={{ color: '#e91e63', fontWeight: '600', fontSize: 12 }}>Clear all</Text>
                 </TouchableOpacity>
-              )}
+              </View>
+            )}
+
+            <FlatList
+              data={orderNumbers}
+              keyExtractor={(_, i) => i.toString()}
+              renderItem={({ item }) => {
+                const isChecked = tempOrderNos.some(o => o.trans_no === item.trans_no);
+                return (
+                  <TouchableOpacity style={[styles.listItem, { flexDirection: 'row', alignItems: 'center' }]} onPress={() => toggleOrderNo(item)}>
+                    {/* Checkbox */}
+                    <View style={[styles.cbBox, isChecked && styles.cbBoxChecked]}>
+                      {isChecked && <Text style={styles.cbTick}>✓</Text>}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.listItemText}>{item.trans_dt}({item.VouchNo})</Text>
+                      <Text style={{ fontSize: 11, color: '#90a4ae', marginTop: 2 }}>Order No: {item.trans_no}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }}
             />
+
+            {/* Done button */}
+            <TouchableOpacity style={styles.doneBtn} onPress={confirmOrderSelection}>
+              <Text style={styles.doneBtnText}>DONE  ({tempOrderNos.length} selected)</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </Modal>
 
       <SearchableDropdown visible={showProductModal} data={[{ ItemCode: 'All', ProductName: 'All Products' }, ...products]} title={`Product${selectedParty ? ` — ${selectedParty.PartyName}` : ''}`} placeholder="Search product..." onSelect={p => handleProductSelect(p.ItemCode === 'All' ? null : p)} onClose={() => setShowProductModal(false)} />
+
     </SafeAreaView>
   );
 }
@@ -445,6 +550,16 @@ const styles = StyleSheet.create({
   closeText: { color: "#e91e63", fontWeight: "bold" },
   searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#f5f7fa", borderRadius: 12, paddingHorizontal: 12, height: 48, marginBottom: 16 },
   searchInput: { flex: 1, marginLeft: 10, fontSize: 15 },
-  listItem: { paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: "#f0f2f5" },
+  listItem: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#f0f2f5" },
   listItemText: { fontSize: 15, color: "#333", fontWeight: "500" },
+  // Date picker button
+  dateBtn: { borderWidth: 1.5, borderColor: '#e0e7ef', borderRadius: 10, paddingHorizontal: 12, height: 46, flexDirection: 'row', alignItems: 'center', backgroundColor: '#fafcff', gap: 8 },
+  dateBtnText: { fontSize: 14, color: '#263238', fontWeight: '500', flex: 1 },
+  // Multi-select checkboxes
+  cbBox: { width: 22, height: 22, borderRadius: 5, borderWidth: 2, borderColor: '#b0bec5', marginRight: 12, alignItems: 'center', justifyContent: 'center' },
+  cbBoxChecked: { backgroundColor: '#0056b3', borderColor: '#0056b3' },
+  cbTick: { color: '#fff', fontSize: 13, fontWeight: '800', lineHeight: 16 },
+  // Done button in order modal
+  doneBtn: { backgroundColor: '#0056b3', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
+  doneBtnText: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 },
 });
