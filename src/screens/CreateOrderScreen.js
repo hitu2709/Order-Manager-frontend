@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { createOrder, updateOrder, fetchParties, fetchProducts, fetchSalesmen } from "../services/api";
+import { createOrder, updateOrder, fetchParties, fetchProducts, fetchSalesmen, fetchProductStock } from "../services/api";
 
 import Icon from "../components/Icon";
 
@@ -155,6 +155,8 @@ export default function CreateOrderScreen({ navigation, route }) {
   
   // Product Logic State
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [stockQty, setStockQty] = useState(null);       // null = not loaded yet
+  const [stockLoading, setStockLoading] = useState(false);
   const [flag, setFlag] = useState("1");
   const [adjustment, setAdjustment] = useState("R");
   const [adjustmentValue, setAdjustmentValue] = useState("0.00");
@@ -231,6 +233,7 @@ export default function CreateOrderScreen({ navigation, route }) {
     if (matchedProduct) {
       setSelectedProduct(matchedProduct);
       setRate(String(matchedProduct.Rate || ''));
+      loadStockForProduct(matchedProduct.ItemCode);
     } else {
       Alert.alert('No Match', `No product found for scanned code: "${scannedCode}". Please check the barcode or select manually.`);
     }
@@ -254,6 +257,20 @@ export default function CreateOrderScreen({ navigation, route }) {
     }
     setScanned(false);
     setShowScanner(true);
+  };
+
+  const loadStockForProduct = async (itemCode) => {
+    setStockQty(null);
+    setStockLoading(true);
+    try {
+      const res = await fetchProductStock(itemCode);
+      setStockQty(res.success ? parseFloat(res.stock || 0) : 0);
+    } catch (e) {
+      console.error('Stock fetch error', e);
+      setStockQty(0);
+    } finally {
+      setStockLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -409,10 +426,12 @@ export default function CreateOrderScreen({ navigation, route }) {
       amount: currentAmount,
       remark: remark,
       imagePath: selectedProduct.ImagePath,
+      stkQty: stockQty ?? 0,   // ← save the fetched stock
     };
 
     setProductsList([...productsList, newProduct]);
     setSelectedProduct(null);
+    setStockQty(null);
     setQty("");
     setRate("");
     setDiscountPercent("0");
@@ -485,7 +504,8 @@ export default function CreateOrderScreen({ navigation, route }) {
         unitPrice: parseFloat(p.rate),
         discount: parseFloat(p.discount),
         discountPercent: parseFloat(p.discountPercent),
-        remark: p.remark || ""
+        remark: p.remark || "",
+        stkQty: parseFloat(p.stkQty || 0),   // ← pass stock to backend
       }));
 
       const payload = {
@@ -725,8 +745,13 @@ export default function CreateOrderScreen({ navigation, route }) {
             </View>
             <View style={styles.halfCol}>
               <FieldLabel label="STOCK LEFT" />
-              <View style={styles.stockBadge}>
-                <Text style={styles.stockText}>{selectedProduct?.StockQty || "0"}</Text>
+              <View style={[styles.stockBadge, stockLoading && { backgroundColor: '#f0f4ff' }]}>
+                {stockLoading
+                  ? <ActivityIndicator size="small" color="#0056b3" />
+                  : <Text style={styles.stockText}>
+                      {stockQty === null ? '—' : stockQty.toFixed(2)}
+                    </Text>
+                }
               </View>
             </View>
           </View>
@@ -847,7 +872,12 @@ export default function CreateOrderScreen({ navigation, route }) {
         title="Select Item Code"
         placeholder="Search by code or product name..."
         isProduct={true}
-        onSelect={(p) => { setSelectedProduct(p); setRate((p.Rate || 0).toString()); setShowProductModal(false); }}
+        onSelect={(p) => {
+          setSelectedProduct(p);
+          setRate((p.Rate || 0).toString());
+          setShowProductModal(false);
+          loadStockForProduct(p.ItemCode);   // ← fetch stock from SP
+        }}
         onClose={() => setShowProductModal(false)}
       />
 
