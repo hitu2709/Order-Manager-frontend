@@ -100,18 +100,61 @@ const PartySearchList = ({ data, tempParties, onToggle }) => {
 // ── PDF HTML template ──────────────────────────────────────────────────────────
 const buildPdfHtml = (data, filters) => {
   const now = new Date().toLocaleString("en-IN");
-  const rows = data.map((r, i) => `
-    <tr style="background:${i % 2 === 0 ? '#f8faff' : '#fff'}">
-      <td>${r.VouchNo || r.OrderNo || '-'}</td>
-      <td>${r.OrderDate || r.trans_dt || '-'}</td>
-      <td>${r.PartyName || r.CustomerName || '-'}</td>
-      <td>${r.ItemCode ? `<b>${r.ItemCode}</b><br/><small>${r.ProductName || ''}</small>` : '-'}</td>
-      <td style="text-align:center">${r.OrderQty ?? r.TotalQty ?? '-'}</td>
-      <td style="text-align:center">${r.DispatchQty ?? r.DesptchQty ?? 0}</td>
-      <td style="text-align:center;color:#d32f2f;font-weight:700">${r.BalQty ?? '-'}</td>
-    </tr>`).join("");
 
-  const totalBal = data.reduce((s, r) => s + (parseFloat(r.BalQty) || 0), 0);
+  // Build groups preserving server sort order
+  const groups = [];
+  const seen = {};
+  data.forEach(r => {
+    const key = r.VouchNo || r.OrderNo || '-';
+    if (!seen[key]) {
+      seen[key] = true;
+      groups.push({ key, rows: [] });
+    }
+    groups[groups.length - 1].rows.push(r);
+  });
+
+  const colHeaders = `
+    <tr class="col-header">
+      <th>Order No.</th><th>Date</th><th>Party Name</th><th>Item</th>
+      <th style="text-align:center">Ord Qty</th>
+      <th style="text-align:center">Disp Qty</th>
+      <th style="text-align:center">Bal Qty</th>
+    </tr>`;
+
+  const groupedRows = groups.map(group => {
+    const firstRow = group.rows[0];
+    const subOrd  = group.rows.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0);
+    const subDisp = group.rows.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0);
+    const subBal  = group.rows.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0);
+
+    const dataRows = group.rows.map((r, i) => `
+      <tr style="background:${i % 2 === 0 ? '#f8faff' : '#fff'}">
+        <td>${r.VouchNo || r.OrderNo || '-'}</td>
+        <td>${r.OrderDate || r.trans_dt || '-'}</td>
+        <td>${r.PartyName || r.CustomerName || '-'}</td>
+        <td>${r.ItemCode ? `<b>${r.ItemCode}</b><br/><small>${r.ProductName || ''}</small>` : '-'}</td>
+        <td style="text-align:center">${r.OrderQty ?? r.TotalQty ?? '-'}</td>
+        <td style="text-align:center">${r.DispatchQty ?? r.DesptchQty ?? 0}</td>
+        <td style="text-align:center;color:#d32f2f;font-weight:700">${r.BalQty ?? '-'}</td>
+      </tr>`).join('');
+
+    return `
+      <tr class="group-header">
+        <td colspan="7">#${firstRow.VouchNo || firstRow.OrderNo} &nbsp;•&nbsp; ${firstRow.PartyName || firstRow.CustomerName || ''} &nbsp;•&nbsp; ${firstRow.OrderDate || firstRow.trans_dt || ''}</td>
+      </tr>
+      ${colHeaders}
+      ${dataRows}
+      <tr class="subtotal-row">
+        <td colspan="4" style="text-align:right;padding-right:12px;color:#0056b3;font-weight:700">Subtotal</td>
+        <td style="text-align:center;color:#0056b3;font-weight:700">${subOrd.toFixed(0)}</td>
+        <td style="text-align:center;color:#0056b3;font-weight:700">${subDisp.toFixed(0)}</td>
+        <td style="text-align:center;color:#d32f2f;font-weight:700">${subBal.toFixed(0)}</td>
+      </tr>`;
+  }).join('');
+
+  const grandOrd  = data.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0);
+  const grandDisp = data.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0);
+  const grandBal  = data.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0);
 
   return `<!DOCTYPE html><html><head>
   <meta charset="UTF-8"/>
@@ -123,11 +166,14 @@ const buildPdfHtml = (data, filters) => {
     .meta{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
     .meta-box{background:#e3f2fd;border-radius:8px;padding:10px 16px;font-size:12px;}
     .meta-box b{display:block;color:#0056b3;font-size:14px;margin-top:2px;}
-    table{width:100%;border-collapse:collapse;font-size:12px;}
+    table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:0;}
     th{background:#0056b3;color:#fff;padding:8px 6px;text-align:left;font-size:11px;letter-spacing:.5px;}
     td{padding:7px 6px;border-bottom:1px solid #e8eaf6;vertical-align:top;}
-    .footer{margin-top:18px;text-align:right;font-size:12px;color:#555;}
+    .group-header td{background:#0056b3;color:#fff;font-weight:700;font-size:12px;padding:8px 10px;letter-spacing:.3px;border-top:4px solid #fff;}
+    .col-header th{background:#1565c0;}
+    .subtotal-row td{background:#e8f4fd;border-top:1.5px solid #90caf9;font-size:12px;}
     .total-row{background:#e3f2fd!important;font-weight:700;}
+    .footer{margin-top:18px;text-align:right;font-size:12px;color:#555;}
     .badge{display:inline-block;background:#0056b3;color:#fff;border-radius:20px;padding:2px 12px;font-size:11px;}
   </style></head><body>
   <div class="header">
@@ -142,22 +188,20 @@ const buildPdfHtml = (data, filters) => {
     <div class="meta-box">Records<b><span class="badge">${data.length}</span></b></div>
   </div>
   <table>
-    <thead><tr>
-      <th>Order No.</th><th>Date</th><th>Party Name</th><th>Item</th>
-      <th style="text-align:center">Ord Qty</th>
-      <th style="text-align:center">Disp Qty</th>
-      <th style="text-align:center">Bal Qty</th>
-    </tr></thead>
-    <tbody>${rows}
-    <tr class="total-row">
-      <td colspan="6" style="text-align:right;padding-right:12px">TOTAL BALANCE</td>
-      <td style="text-align:center;color:#d32f2f">${totalBal.toFixed(0)}</td>
-    </tr>
+    <tbody>
+      ${groupedRows}
+      <tr class="total-row">
+        <td colspan="4" style="text-align:right;padding-right:12px">GRAND TOTAL</td>
+        <td style="text-align:center">${grandOrd.toFixed(0)}</td>
+        <td style="text-align:center">${grandDisp.toFixed(0)}</td>
+        <td style="text-align:center;color:#d32f2f">${grandBal.toFixed(0)}</td>
+      </tr>
     </tbody>
   </table>
   <div class="footer">Pending Order Report • ${now}</div>
 </body></html>`;
 };
+
 
 export default function PendingReportScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
