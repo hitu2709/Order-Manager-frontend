@@ -57,6 +57,47 @@ const SearchableDropdown = ({ visible, data, onSelect, onClose, title, placehold
   );
 };
 
+// Searchable multi-select list for Party modal (rendered inline, no outer Modal)
+const PartyMultiList = ({ data, tempParties, onToggle }) => {
+  const [search, setSearch] = useState("");
+  const filtered = data.filter(item =>
+    (item.PartyName || "").toLowerCase().includes(search.toLowerCase())
+  );
+  return (
+    <>
+      <View style={styles.searchBar}>
+        <Icon name="search" size={14} color="#90a4ae" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search party..."
+          value={search}
+          onChangeText={setSearch}
+          autoFocus
+        />
+      </View>
+      <FlatList
+        data={filtered}
+        keyExtractor={(_, i) => i.toString()}
+        renderItem={({ item }) => {
+          const isChecked = tempParties.some(p => p.PartyID === item.PartyID);
+          return (
+            <TouchableOpacity
+              style={[styles.listItem, { flexDirection: 'row', alignItems: 'center' }]}
+              onPress={() => onToggle(item)}
+            >
+              <View style={[styles.cbBox, isChecked && styles.cbBoxChecked]}>
+                {isChecked && <Text style={styles.cbTick}>✓</Text>}
+              </View>
+              <Text style={styles.listItemText}>{item.PartyName}</Text>
+            </TouchableOpacity>
+          );
+        }}
+      />
+    </>
+  );
+};
+
+
 // ── PDF HTML template ──────────────────────────────────────────────────────────
 const buildPdfHtml = (data, filters) => {
   const now = new Date().toLocaleString("en-IN");
@@ -140,12 +181,13 @@ export default function PendingReportScreen({ navigation }) {
   const [showToPicker,   setShowToPicker]   = useState(false);
 
   // Filters
-  const [selectedParty,    setSelectedParty]    = useState(null);
-  const [selectedOrderNos, setSelectedOrderNos] = useState([]);   // ← now an array
+  const [selectedParties,  setSelectedParties]  = useState([]);   // ← array for multi-select
+  const [selectedOrderNos, setSelectedOrderNos] = useState([]);   // ← array for multi-select
   const [selectedProduct,  setSelectedProduct]  = useState(null);
   const [isPendingOnly,    setIsPendingOnly]    = useState(true);
 
-  // Temp selection inside the multi-select order modal
+  // Temp selections inside multi-select modals
+  const [tempParties,  setTempParties]  = useState([]);
   const [tempOrderNos, setTempOrderNos] = useState([]);
 
   const [showPartyModal,   setShowPartyModal]   = useState(false);
@@ -164,21 +206,30 @@ export default function PendingReportScreen({ navigation }) {
     })();
   }, []);
 
-  const handlePartySelect = useCallback(async (party) => {
-    const isAll = !party || party.PartyID === 'All';
-    setSelectedParty(isAll ? null : party);
+  // Toggle a party in/out of tempParties list
+  const toggleParty = useCallback((party) => {
+    setTempParties(prev => {
+      const exists = prev.some(p => p.PartyID === party.PartyID);
+      return exists ? prev.filter(p => p.PartyID !== party.PartyID) : [...prev, party];
+    });
+  }, []);
+
+  // Confirm multi-select party and cascade order/product lists
+  const confirmPartySelection = useCallback(async () => {
+    setSelectedParties(tempParties);
     setSelectedOrderNos([]); setSelectedProduct(null);
     setShowPartyModal(false); setReportData(null);
-    if (isAll) { setOrderNumbers(allOrderNumbers); setProducts(allProducts); return; }
+    if (tempParties.length === 0) { setOrderNumbers(allOrderNumbers); setProducts(allProducts); return; }
     setDropdownLoading(true);
     try {
+      const partyParam = tempParties.map(p => p.PartyID).join(',');
       const [oD, prD] = await Promise.all([
-        fetchOrderNumbers({ partyId: party.PartyID }),
-        fetchProducts({ partyId: party.PartyID }),
+        fetchOrderNumbers({ partyId: partyParam }),
+        fetchProducts({ partyId: tempParties[0].PartyID }),
       ]);
       setOrderNumbers(oD.data || []); setProducts(prD.data || []);
     } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
-  }, [allOrderNumbers, allProducts]);
+  }, [tempParties, allOrderNumbers, allProducts]);
 
   // Toggle a single order in/out of the temp selection list
   const toggleOrderNo = useCallback((order) => {
@@ -213,15 +264,15 @@ export default function PendingReportScreen({ navigation }) {
     try {
       const params = {};
       if (!isAll) params.productId = product.ItemCode;
-      if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
+      if (selectedParties.length > 0) params.partyId = selectedParties.map(p => p.PartyID).join(',');
       const oD = await fetchOrderNumbers(Object.keys(params).length ? params : {});
       setOrderNumbers(oD.data || []);
     } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
-  }, [selectedParty]);
+  }, [selectedParties]);
 
   const handleReset = () => {
-    setSelectedParty(null); setSelectedOrderNos([]); setSelectedProduct(null);
-    setTempOrderNos([]);
+    setSelectedParties([]); setSelectedOrderNos([]); setSelectedProduct(null);
+    setTempParties([]); setTempOrderNos([]);
     setParties(allParties); setOrderNumbers(allOrderNumbers); setProducts(allProducts);
     setFromDate(new Date()); setToDate(new Date());
     setIsPendingOnly(true); setReportData(null);
@@ -234,10 +285,13 @@ export default function PendingReportScreen({ navigation }) {
       const orderNoParam = selectedOrderNos.length > 0
         ? selectedOrderNos.map(o => o.trans_no).join(',')
         : 'All';
+      const partyParam = selectedParties.length > 0
+        ? selectedParties.map(p => p.PartyID).join(',')
+        : 'All';
       const res = await fetchPendingOrderReport({
         fromDate: toApiDate(fromDate),
         toDate:   toApiDate(toDate),
-        partyId:  selectedParty?.PartyID || 'All',
+        partyId:  partyParam,
         orderNo:  orderNoParam,
         productId: selectedProduct?.ItemCode || 'All',
         pendingOnly: isPendingOnly,
@@ -258,10 +312,13 @@ export default function PendingReportScreen({ navigation }) {
       const orderLabel = selectedOrderNos.length > 0
         ? selectedOrderNos.map(o => `${o.trans_dt}(${o.VouchNo})`).join(', ')
         : 'All';
+      const partyLabel = selectedParties.length > 0
+        ? selectedParties.map(p => p.PartyName).join(', ')
+        : null;
       const html = buildPdfHtml(reportData, {
         fromDate: toDisplay(fromDate),
         toDate:   toDisplay(toDate),
-        partyName: selectedParty?.PartyName,
+        partyName: partyLabel,
         orderLabel,
         productName: selectedProduct ? `${selectedProduct.ItemCode} - ${selectedProduct.ProductName}` : null,
       });
@@ -334,8 +391,10 @@ export default function PendingReportScreen({ navigation }) {
           </View>
 
           <FieldLabel label="PARTY NAME" />
-          <TouchableOpacity style={styles.dropdown} onPress={() => setShowPartyModal(true)}>
-            <Text style={selectedParty ? styles.dropdownValue : styles.dropdownPlaceholder}>{selectedParty ? selectedParty.PartyName : "All Parties"}</Text>
+          <TouchableOpacity style={styles.dropdown} onPress={() => { setTempParties(selectedParties); setShowPartyModal(true); }}>
+            <Text style={selectedParties.length > 0 ? styles.dropdownValue : styles.dropdownPlaceholder}>
+              {selectedParties.length > 0 ? `${selectedParties.length} party(s) selected` : 'All Parties'}
+            </Text>
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
@@ -364,9 +423,13 @@ export default function PendingReportScreen({ navigation }) {
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          {(selectedParty || selectedOrderNos.length > 0 || selectedProduct) && (
+          {(selectedParties.length > 0 || selectedOrderNos.length > 0 || selectedProduct) && (
             <View style={styles.chipRow}>
-              {selectedParty && <View style={styles.chip}><Text style={styles.chipText}>{selectedParty.PartyName}</Text></View>}
+              {selectedParties.map(p => (
+                <View key={p.PartyID} style={styles.chip}>
+                  <Text style={styles.chipText}>{p.PartyName}</Text>
+                </View>
+              ))}
               {selectedOrderNos.map(o => (
                 <View key={o.trans_no} style={styles.chip}>
                   <Text style={styles.chipText}>{o.trans_dt}({o.VouchNo})</Text>
@@ -437,7 +500,38 @@ export default function PendingReportScreen({ navigation }) {
         )}
       </ScrollView>
 
-      <SearchableDropdown visible={showPartyModal} data={[{ PartyID: 'All', PartyName: 'All Parties' }, ...parties]} title="Select Party" placeholder="Search party..." onSelect={p => handlePartySelect(p.PartyID === 'All' ? null : p)} onClose={() => setShowPartyModal(false)} />
+      {/* Party multi-select modal */}
+      <Modal visible={showPartyModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Parties</Text>
+              <TouchableOpacity onPress={() => setShowPartyModal(false)}>
+                <Text style={styles.closeText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+
+            {tempParties.length > 0 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#e3f2fd', borderRadius: 10, padding: 10, marginBottom: 12 }}>
+                <Text style={{ color: '#0056b3', fontWeight: '700', flex: 1 }}>{tempParties.length} party(s) selected</Text>
+                <TouchableOpacity onPress={() => setTempParties([])}>
+                  <Text style={{ color: '#e91e63', fontWeight: '600', fontSize: 12 }}>Clear all</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <PartyMultiList
+              data={parties}
+              tempParties={tempParties}
+              onToggle={toggleParty}
+            />
+
+            <TouchableOpacity style={styles.doneBtn} onPress={confirmPartySelection}>
+              <Text style={styles.doneBtnText}>DONE  ({tempParties.length} selected)</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Order No. multi-select modal */}
       <Modal visible={showOrderModal} animationType="slide" transparent>
