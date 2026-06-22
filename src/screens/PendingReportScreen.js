@@ -462,39 +462,79 @@ export default function PendingReportScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            {/* Table header */}
-            <View style={styles.tableHeader}>
-              <Text style={[styles.th, { flex: 1 }]}>Order</Text>
-              <Text style={[styles.th, { flex: 1.2 }]}>Party</Text>
-              <Text style={[styles.th, { flex: 1.2 }]}>Item</Text>
-              <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Ord</Text>
-              <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Disp</Text>
-              <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Bal</Text>
-            </View>
+            {/* Group rows by VouchNo — header + rows + subtotal per order */}
+            {(() => {
+              // Build ordered groups preserving server sort order
+              const groups = [];
+              const seen = {};
+              reportData.forEach(r => {
+                const key = r.VouchNo || r.OrderNo || r.OrderNo;
+                if (!seen[key]) {
+                  seen[key] = true;
+                  groups.push({ key, rows: [] });
+                }
+                groups[groups.length - 1].rows.push(r);
+              });
 
-            {reportData.map((r, i) => (
-              <View key={i} style={[styles.tableRow, i % 2 === 0 && { backgroundColor: '#f8faff' }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.tdBold}>{r.VouchNo || r.OrderNo}</Text>
-                  <Text style={styles.tdSub}>{r.OrderDate || r.trans_dt}</Text>
+              const TableHeader = () => (
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.th, { flex: 1 }]}>Order</Text>
+                  <Text style={[styles.th, { flex: 1.2 }]}>Party</Text>
+                  <Text style={[styles.th, { flex: 1.2 }]}>Item</Text>
+                  <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Ord</Text>
+                  <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Disp</Text>
+                  <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Bal</Text>
                 </View>
-                <Text style={[styles.td, { flex: 1.2 }]} numberOfLines={2}>{r.PartyName || r.CustomerName}</Text>
-                <View style={{ flex: 1.2 }}>
-                  <Text style={styles.tdBold} numberOfLines={1}>{r.ItemCode || '-'}</Text>
-                  <Text style={styles.tdSub} numberOfLines={2}>{r.ProductName}</Text>
-                </View>
-                <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.OrderQty ?? '-'}</Text>
-                <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.DispatchQty ?? 0}</Text>
-                <Text style={[styles.tdBal, { flex: 0.7 }]}>{r.BalQty ?? '-'}</Text>
-              </View>
-            ))}
+              );
 
-            {/* Totals row */}
+              return groups.map((group, gIdx) => {
+                const subOrd  = group.rows.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0);
+                const subDisp = group.rows.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0);
+                const subBal  = group.rows.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0);
+                const firstRow = group.rows[0];
+                return (
+                  <View key={group.key}>
+                    {/* Header for this order group */}
+                    <View style={styles.orderGroupHeader}>
+                      <Text style={styles.orderGroupTitle}>
+                        {`#${firstRow.VouchNo || firstRow.OrderNo}  •  ${firstRow.PartyName || firstRow.CustomerName || ''}  •  ${firstRow.OrderDate || firstRow.trans_dt || ''}`}
+                      </Text>
+                    </View>
+                    <TableHeader />
+                    {group.rows.map((r, i) => (
+                      <View key={i} style={[styles.tableRow, i % 2 === 0 && { backgroundColor: '#f8faff' }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.tdBold}>{r.VouchNo || r.OrderNo}</Text>
+                          <Text style={styles.tdSub}>{r.OrderDate || r.trans_dt}</Text>
+                        </View>
+                        <Text style={[styles.td, { flex: 1.2 }]} numberOfLines={2}>{r.PartyName || r.CustomerName}</Text>
+                        <View style={{ flex: 1.2 }}>
+                          <Text style={styles.tdBold} numberOfLines={1}>{r.ItemCode || '-'}</Text>
+                          <Text style={styles.tdSub} numberOfLines={2}>{r.ProductName}</Text>
+                        </View>
+                        <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.OrderQty ?? '-'}</Text>
+                        <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.DispatchQty ?? 0}</Text>
+                        <Text style={[styles.tdBal, { flex: 0.7 }]}>{r.BalQty ?? '-'}</Text>
+                      </View>
+                    ))}
+                    {/* Subtotal for this order */}
+                    <View style={styles.subtotalRow}>
+                      <Text style={[styles.tdBold, { flex: 3.4, color: '#0056b3' }]}>Subtotal</Text>
+                      <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700', color: '#0056b3' }]}>{subOrd.toFixed(0)}</Text>
+                      <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700', color: '#0056b3' }]}>{subDisp.toFixed(0)}</Text>
+                      <Text style={[styles.tdBal, { flex: 0.7, color: '#c62828', fontSize: 13 }]}>{subBal.toFixed(0)}</Text>
+                    </View>
+                  </View>
+                );
+              });
+            })()}
+
+            {/* Grand Total */}
             <View style={[styles.tableRow, { backgroundColor: '#e3f2fd' }]}>
-              <Text style={[styles.tdBold, { flex: 3.4 }]}>TOTAL</Text>
-              <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.OrderQty) || 0), 0).toFixed(0)}</Text>
+              <Text style={[styles.tdBold, { flex: 3.4 }]}>GRAND TOTAL</Text>
+              <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0).toFixed(0)}</Text>
               <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0).toFixed(0)}</Text>
-              <Text style={[styles.tdBal, { flex: 0.7, fontSize: 14 }]}>{reportData.reduce((s, r) => s + (parseFloat(r.BalQty) || 0), 0).toFixed(0)}</Text>
+              <Text style={[styles.tdBal, { flex: 0.7, fontSize: 14 }]}>{reportData.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0).toFixed(0)}</Text>
             </View>
           </View>
         )}
@@ -639,4 +679,10 @@ const styles = StyleSheet.create({
   // Done button in order modal
   doneBtn: { backgroundColor: '#0056b3', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginTop: 14 },
   doneBtnText: { color: '#fff', fontWeight: '800', fontSize: 15, letterSpacing: 0.5 },
+  // Order group header (VouchNo banner between groups)
+  orderGroupHeader: { backgroundColor: '#0056b3', paddingVertical: 7, paddingHorizontal: 12, marginTop: 4 },
+  orderGroupTitle: { color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
+  // Subtotal row per order
+  subtotalRow: { flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#e8f4fd', borderTopWidth: 1.5, borderTopColor: '#90caf9', marginBottom: 2 },
 });
+
