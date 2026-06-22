@@ -246,13 +246,12 @@ export default function PendingReportScreen({ navigation }) {
     if (tempOrderNos.length === 0) { setProducts(allProducts); return; }
     setDropdownLoading(true);
     try {
-      // Use first selected order to narrow products (server supports single orderNo)
       const params = { orderNo: tempOrderNos[0].trans_no };
-      if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
+      if (selectedParties.length > 0) params.partyId = selectedParties.map(p => p.PartyID).join(',');
       const prD = await fetchProducts(params);
       setProducts(prD.data || []);
     } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
-  }, [tempOrderNos, selectedParty, allProducts]);
+  }, [tempOrderNos, selectedParties, allProducts]);
 
 
   const handleProductSelect = useCallback(async (product) => {
