@@ -199,7 +199,7 @@ export default function StockReportScreen({ navigation }) {
   useEffect(() => {
     (async () => {
       try {
-        const [pData, prodData] = await Promise.all([fetchParties(), fetchProducts()]);
+        const [pData, prodData] = await Promise.all([fetchParties({ grpName: 'CREDITORS' }), fetchProducts()]);
         setAllParties(pData.data || []);    setParties(pData.data || []);
         setAllProducts(prodData.data || []); setProducts(prodData.data || []);
       } catch (e) { console.error("Failed to load stock dropdowns", e); }
@@ -239,7 +239,7 @@ export default function StockReportScreen({ navigation }) {
     if (tempProducts.length === 0) { setParties(allParties); return; }
     setDropdownLoading(true);
     try {
-      const pData = await fetchParties({ productId: tempProducts.map(p => p.ItemCode).join(',') });
+      const pData = await fetchParties({ productId: tempProducts.map(p => p.ItemCode).join(','), grpName: 'CREDITORS' });
       setParties(pData.data || []);
     } catch (e) { console.error(e); } finally { setDropdownLoading(false); }
   }, [tempProducts, allParties]);
