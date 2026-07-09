@@ -55,116 +55,140 @@ const MultiSearchList = ({ data, selected, onToggle, labelKey }) => {
 
 // ── PDF HTML builder ──────────────────────────────────────────────────────────
 const buildPdfHtml = (data, filters, isSummary) => {
-  const now = new Date().toLocaleString("en-IN");
-  const colHeaders = isSummary
-    ? `<tr class="col-header"><th>Item Code</th><th>Product Name</th><th style="text-align:center">Ord Qty</th><th style="text-align:center">Disp Qty</th><th style="text-align:center">Bal Qty</th></tr>`
-    : `<tr class="col-header"><th>Order No.</th><th>Date</th><th>Item</th><th style="text-align:center">Ord Qty</th><th style="text-align:center">Disp Qty</th><th style="text-align:center">Bal Qty</th></tr>`;
+  const now = new Date().toLocaleString('en-IN');
+
+  const subTableHeader = `
+    <tr style="background:#dce8f5">
+      <th style="width:70px">Date</th>
+      <th style="width:55px">Doc #</th>
+      <th style="width:80px">Description</th>
+      <th style="width:55px;text-align:right">Opening</th>
+      <th style="width:55px;text-align:right">Inward</th>
+      <th style="width:55px;text-align:right">Outward</th>
+      <th style="width:55px;text-align:right">Balance</th>
+    </tr>`;
 
   let bodyHtml = '';
-  let grandOrd = 0, grandDisp = 0, grandBal = 0;
+  let grandOpening = 0, grandInward = 0, grandOutward = 0, grandBalance = 0;
 
   if (isSummary) {
-    // Flat product rows
-    bodyHtml = data.map((r, i) => {
-      grandOrd  += parseFloat(r.OrderQty)    || 0;
-      grandDisp += parseFloat(r.DispatchQty) || 0;
-      grandBal  += parseFloat(r.BalQty)      || 0;
+    // ── Summary: flat product list with Opening/Inward/Outward/Balance ────────
+    const partyHeader = filters.partyName
+      ? `<div class="party-header">${filters.partyName}</div>` : '';
+
+    const rows = data.map((r, i) => {
+      const op  = parseFloat(r.Opening)  || 0;
+      const inw = parseFloat(r.Inward)   || 0;
+      const out = parseFloat(r.Outward)  || 0;
+      const bal = parseFloat(r.Balance)  || 0;
+      grandOpening += op; grandInward += inw; grandOutward += out; grandBalance += bal;
       return `<tr style="background:${i % 2 === 0 ? '#f8faff' : '#fff'}">
-        <td><b>${r.ItemCode || '-'}</b></td>
-        <td>${r.ProductName || '-'}</td>
-        <td style="text-align:center">${r.OrderQty ?? '-'}</td>
-        <td style="text-align:center">${r.DispatchQty ?? 0}</td>
-        <td style="text-align:center;color:#d32f2f;font-weight:700">${r.BalQty ?? '-'}</td>
+        <td><b>${r.ProductName || '-'}</b><br/><span style="font-size:10px;color:#0056b3">${r.ItemCode || ''}</span></td>
+        <td style="text-align:right">${op.toFixed(2)}</td>
+        <td style="text-align:right">${inw.toFixed(2)}</td>
+        <td style="text-align:right">${out.toFixed(2)}</td>
+        <td style="text-align:right;color:#d32f2f;font-weight:700">${bal.toFixed(2)}</td>
       </tr>`;
     }).join('');
+
+    bodyHtml = `
+      ${partyHeader}
+      <table>
+        <thead>
+          <tr style="background:#0056b3;color:#fff">
+            <th>Product Name and Code</th>
+            <th style="text-align:right">Opening</th>
+            <th style="text-align:right">Inward</th>
+            <th style="text-align:right">Outward</th>
+            <th style="text-align:right">Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+          <tr style="background:#e3f2fd;font-weight:700">
+            <td style="text-align:center;letter-spacing:2px">......T O T A L......</td>
+            <td style="text-align:right">${grandOpening.toFixed(2)}</td>
+            <td style="text-align:right">${grandInward.toFixed(2)}</td>
+            <td style="text-align:right">${grandOutward.toFixed(2)}</td>
+            <td style="text-align:right;color:#d32f2f">${grandBalance.toFixed(2)}</td>
+          </tr>
+        </tbody>
+      </table>`;
   } else {
-    // Group by VouchNo
-    const groups = [];
-    const seen = {};
+    // ── Detail: group by Product ───────────────────────────────────────────────
+    const groups = {};
+    const order  = [];
     data.forEach(r => {
-      const key = r.VouchNo || r.TransNo || '-';
-      if (!seen[key]) { seen[key] = true; groups.push({ key, rows: [] }); }
-      groups[groups.length - 1].rows.push(r);
+      const key = r.ItemCode || r.ProductName || '-';
+      if (!groups[key]) { groups[key] = { rows: [], partyName: r.PartyName, productName: r.ProductName, itemCode: r.ItemCode }; order.push(key); }
+      groups[key].rows.push(r);
     });
 
-    bodyHtml = groups.map(group => {
-      const firstRow = group.rows[0];
-      const subOrd  = group.rows.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0);
-      const subDisp = group.rows.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0);
-      const subBal  = group.rows.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0);
-      grandOrd += subOrd; grandDisp += subDisp; grandBal += subBal;
+    bodyHtml = order.map(key => {
+      const g   = groups[key];
+      const subOp  = g.rows.reduce((s, r) => s + (parseFloat(r.Opening)  || 0), 0);
+      const subIn  = g.rows.reduce((s, r) => s + (parseFloat(r.Inward)   || 0), 0);
+      const subOut = g.rows.reduce((s, r) => s + (parseFloat(r.Outward)  || 0), 0);
+      const subBal = g.rows.reduce((s, r) => s + (parseFloat(r.Balance)  || 0), 0);
+      grandOpening += subOp; grandInward += subIn; grandOutward += subOut; grandBalance += subBal;
 
-      const dataRows = group.rows.map((r, i) => `
+      const dataRows = g.rows.map((r, i) => `
         <tr style="background:${i % 2 === 0 ? '#f8faff' : '#fff'}">
-          <td>${r.VouchNo || '-'}</td>
           <td>${r.OrderDate || '-'}</td>
-          <td>${r.ItemCode ? `<b>${r.ItemCode}</b><br/><small>${r.ProductName || ''}</small>` : '-'}</td>
-          <td style="text-align:center">${r.OrderQty ?? '-'}</td>
-          <td style="text-align:center">${r.DispatchQty ?? 0}</td>
-          <td style="text-align:center;color:#d32f2f;font-weight:700">${r.BalQty ?? '-'}</td>
+          <td>${r.VouchNo || '-'}</td>
+          <td style="color:#e65100">Opening</td>
+          <td style="text-align:right">${parseFloat(r.Opening || 0).toFixed(2)}</td>
+          <td style="text-align:right">${parseFloat(r.Inward  || 0).toFixed(2)}</td>
+          <td style="text-align:right">${parseFloat(r.Outward || 0).toFixed(2)}</td>
+          <td style="text-align:right;color:#d32f2f;font-weight:700">${parseFloat(r.Balance || 0).toFixed(2)}</td>
         </tr>`).join('');
 
       return `
-        <tr class="group-header">
-          <td colspan="6">#${firstRow.VouchNo} &nbsp;•&nbsp; ${firstRow.PartyName || ''} &nbsp;•&nbsp; ${firstRow.OrderDate || ''}</td>
-        </tr>
-        ${colHeaders}
-        ${dataRows}
-        <tr class="subtotal-row">
-          <td colspan="3" style="text-align:right;padding-right:12px;color:#0056b3;font-weight:700">Subtotal</td>
-          <td style="text-align:center;color:#0056b3;font-weight:700">${subOrd.toFixed(0)}</td>
-          <td style="text-align:center;color:#0056b3;font-weight:700">${subDisp.toFixed(0)}</td>
-          <td style="text-align:center;color:#d32f2f;font-weight:700">${subBal.toFixed(0)}</td>
-        </tr>`;
+        <div class="product-block">
+          <div class="product-header">
+            <span class="prod-name">${g.productName || '-'}</span>
+            <span class="party-name-inline">${g.partyName || ''}</span>
+          </div>
+          <table>
+            <thead>${subTableHeader}</thead>
+            <tbody>
+              ${dataRows}
+              <tr class="sub-total">
+                <td colspan="3" style="text-align:center;letter-spacing:2px">......T O T A L......</td>
+                <td style="text-align:right;font-weight:700">${subOp.toFixed(2)}</td>
+                <td style="text-align:right;font-weight:700">${subIn.toFixed(2)}</td>
+                <td style="text-align:right;font-weight:700">${subOut.toFixed(2)}</td>
+                <td style="text-align:right;font-weight:700;color:#d32f2f">${subBal.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>`;
     }).join('');
   }
 
-  const grandTotalColspan = isSummary ? 2 : 3;
+  const title = isSummary
+    ? `Stock Report Summary From &nbsp;<span class="date">${filters.fromDate}</span>&nbsp; To &nbsp;<span class="date">${filters.toDate}</span>`
+    : `Stock Report From &nbsp;<span class="date">${filters.fromDate}</span>&nbsp; To &nbsp;<span class="date">${filters.toDate}</span>`;
 
   return `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
   <style>
-    body{font-family:Arial,sans-serif;margin:0;padding:20px;color:#1a237e;}
-    .header{background:linear-gradient(135deg,#0056b3,#1976d2);color:#fff;padding:20px 24px;border-radius:10px;margin-bottom:20px;}
-    .header h1{margin:0;font-size:22px;letter-spacing:1px;}
-    .header p{margin:4px 0 0;font-size:13px;opacity:.85;}
-    .mode-badge{display:inline-block;background:${isSummary ? '#43a047' : '#e65100'};color:#fff;border-radius:20px;padding:4px 16px;font-size:12px;font-weight:700;margin-bottom:16px;}
-    .meta{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
-    .meta-box{background:#e3f2fd;border-radius:8px;padding:10px 16px;font-size:12px;}
-    .meta-box b{display:block;color:#0056b3;font-size:14px;margin-top:2px;}
-    table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:0;}
-    th{background:#0056b3;color:#fff;padding:8px 6px;text-align:left;font-size:11px;letter-spacing:.5px;}
-    td{padding:7px 6px;border-bottom:1px solid #e8eaf6;vertical-align:top;}
-    .group-header td{background:#0056b3;color:#fff;font-weight:700;font-size:12px;padding:8px 10px;letter-spacing:.3px;border-top:4px solid #fff;}
-    .col-header th{background:#1565c0;}
-    .subtotal-row td{background:#e8f4fd;border-top:1.5px solid #90caf9;}
-    .total-row{background:#e3f2fd!important;font-weight:700;}
-    .footer{margin-top:18px;text-align:right;font-size:12px;color:#555;}
-    .badge{display:inline-block;background:#0056b3;color:#fff;border-radius:20px;padding:2px 12px;font-size:11px;}
+    body{font-family:Arial,sans-serif;margin:0;padding:16px;color:#222;font-size:12px;}
+    h2{margin:0 0 12px;font-size:15px;}
+    .date{color:#0056b3;font-weight:700;font-size:15px;}
+    .party-header{text-align:center;color:#0056b3;font-weight:700;font-size:13px;margin-bottom:10px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:0;font-size:11px;}
+    th{background:#dce8f5;color:#1a237e;padding:5px 4px;text-align:left;border:1px solid #c5d8ee;font-size:10px;}
+    td{padding:4px;border:1px solid #e0e6f0;vertical-align:top;}
+    .product-block{margin-bottom:14px;border:1px solid #b0c8e8;border-radius:4px;overflow:hidden;}
+    .product-header{background:#f0f4ff;padding:5px 8px;display:flex;justify-content:space-between;border-bottom:1px solid #b0c8e8;}
+    .prod-name{font-weight:700;color:#1a237e;font-size:11px;}
+    .party-name-inline{color:#0056b3;font-weight:700;font-size:11px;}
+    .sub-total td{background:#e8f0fb;font-weight:600;}
+    .footer{margin-top:14px;text-align:right;font-size:10px;color:#777;}
   </style></head><body>
-  <div class="header">
-    <h1>📊 Stock Report</h1>
-    <p>Generated on ${now}</p>
-  </div>
-  <div class="mode-badge">${isSummary ? '📋 Summary Mode' : '📄 Detail Mode'}</div>
-  <div class="meta">
-    <div class="meta-box">Period<b>${filters.fromDate} → ${filters.toDate}</b></div>
-    <div class="meta-box">Party<b>${filters.partyName || 'All Parties'}</b></div>
-    <div class="meta-box">Product<b>${filters.productName || 'All Products'}</b></div>
-    <div class="meta-box">Records<b><span class="badge">${data.length}</span></b></div>
-  </div>
-  <table>
-    <tbody>
-      ${isSummary ? colHeaders : ''}
-      ${bodyHtml}
-      <tr class="total-row">
-        <td colspan="${grandTotalColspan}" style="text-align:right;padding-right:12px">GRAND TOTAL</td>
-        <td style="text-align:center">${grandOrd.toFixed(0)}</td>
-        <td style="text-align:center">${grandDisp.toFixed(0)}</td>
-        <td style="text-align:center;color:#d32f2f">${grandBal.toFixed(0)}</td>
-      </tr>
-    </tbody>
-  </table>
-  <div class="footer">Stock Report • ${now}</div>
+  <h2>${title}</h2>
+  ${bodyHtml}
+  <div class="footer">Generated: ${now}</div>
 </body></html>`;
 };
 
@@ -295,101 +319,121 @@ export default function StockReportScreen({ navigation }) {
     finally { setPdfLoading(false); }
   };
 
-  // ── Grouped render for Detail mode ────────────────────────────────────────
+  // ── Detail mode: group by Product ────────────────────────────────────────
   const renderDetailResults = () => {
-    const groups = [];
-    const seen = {};
+    // Build groups keyed by ItemCode
+    const groups = {};
+    const order  = [];
     reportData.forEach(r => {
-      const key = r.VouchNo || r.TransNo || '-';
-      if (!seen[key]) { seen[key] = true; groups.push({ key, rows: [] }); }
-      groups[groups.length - 1].rows.push(r);
+      const key = r.ItemCode || r.ProductName || '-';
+      if (!groups[key]) { groups[key] = { productName: r.ProductName, itemCode: r.ItemCode, partyName: r.PartyName, rows: [] }; order.push(key); }
+      groups[key].rows.push(r);
     });
 
     const ColHeader = () => (
-      <View style={styles.tableHeader}>
-        <Text style={[styles.th, { flex: 1.2 }]}>Order</Text>
-        <Text style={[styles.th, { flex: 1.8 }]}>Item</Text>
-        <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Ord</Text>
-        <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Disp</Text>
-        <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Bal</Text>
+      <View style={[styles.tableHeader, { backgroundColor: '#dce8f5' }]}>
+        <Text style={[styles.th, { flex: 1.1, color: '#1a237e' }]}>Date</Text>
+        <Text style={[styles.th, { flex: 0.8, color: '#1a237e' }]}>Doc #</Text>
+        <Text style={[styles.th, { flex: 1.0, color: '#1a237e' }]}>Desc.</Text>
+        <Text style={[styles.th, { flex: 0.8, color: '#1a237e', textAlign: 'right' }]}>Opening</Text>
+        <Text style={[styles.th, { flex: 0.7, color: '#1a237e', textAlign: 'right' }]}>Inward</Text>
+        <Text style={[styles.th, { flex: 0.7, color: '#1a237e', textAlign: 'right' }]}>Outward</Text>
+        <Text style={[styles.th, { flex: 0.8, color: '#1a237e', textAlign: 'right' }]}>Balance</Text>
       </View>
     );
 
+    let grandIn = 0, grandOut = 0, grandBal = 0;
+
     return (
       <>
-        {groups.map(group => {
-          const firstRow = group.rows[0];
-          const subOrd  = group.rows.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0);
-          const subDisp = group.rows.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0);
-          const subBal  = group.rows.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0);
+        {order.map(key => {
+          const g = groups[key];
+          const subIn  = g.rows.reduce((s, r) => s + (parseFloat(r.Inward)  || 0), 0);
+          const subOut = g.rows.reduce((s, r) => s + (parseFloat(r.Outward) || 0), 0);
+          const subBal = g.rows.reduce((s, r) => s + (parseFloat(r.Balance) || 0), 0);
+          grandIn += subIn; grandOut += subOut; grandBal += subBal;
           return (
-            <View key={group.key}>
-              <View style={styles.orderGroupHeader}>
-                <Text style={styles.orderGroupTitle}>
-                  {`#${firstRow.VouchNo}  •  ${firstRow.PartyName || ''}  •  ${firstRow.OrderDate || ''}`}
-                </Text>
+            <View key={key} style={styles.productBlock}>
+              {/* Product header: name left, party right */}
+              <View style={styles.productGroupHeader}>
+                <Text style={styles.productGroupName} numberOfLines={2}>{g.productName || key}</Text>
+                <Text style={styles.productGroupParty} numberOfLines={1}>{g.partyName || ''}</Text>
               </View>
               <ColHeader />
-              {group.rows.map((r, i) => (
+              {g.rows.map((r, i) => (
                 <View key={i} style={[styles.tableRow, i % 2 === 0 && { backgroundColor: '#f8faff' }]}>
-                  <View style={{ flex: 1.2 }}>
-                    <Text style={styles.tdBold}>{r.VouchNo || '-'}</Text>
-                    <Text style={styles.tdSub}>{r.OrderDate || ''}</Text>
-                  </View>
-                  <View style={{ flex: 1.8 }}>
-                    <Text style={styles.tdBold} numberOfLines={1}>{r.ItemCode || '-'}</Text>
-                    <Text style={styles.tdSub} numberOfLines={2}>{r.ProductName}</Text>
-                  </View>
-                  <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.OrderQty ?? '-'}</Text>
-                  <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.DispatchQty ?? 0}</Text>
-                  <Text style={[styles.tdBal, { flex: 0.7 }]}>{r.BalQty ?? '-'}</Text>
+                  <Text style={[styles.td, { flex: 1.1, fontSize: 10 }]}>{r.OrderDate || '-'}</Text>
+                  <Text style={[styles.td, { flex: 0.8, fontSize: 10 }]}>{r.VouchNo || '-'}</Text>
+                  <Text style={[styles.td, { flex: 1.0, fontSize: 10, color: '#e65100' }]}>Opening</Text>
+                  <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontSize: 10 }]}>0.00</Text>
+                  <Text style={[styles.td, { flex: 0.7, textAlign: 'right', fontSize: 10 }]}>{parseFloat(r.Inward  || 0).toFixed(2)}</Text>
+                  <Text style={[styles.td, { flex: 0.7, textAlign: 'right', fontSize: 10 }]}>{parseFloat(r.Outward || 0).toFixed(2)}</Text>
+                  <Text style={[styles.tdBal, { flex: 0.8, fontSize: 10 }]}>{parseFloat(r.Balance || 0).toFixed(2)}</Text>
                 </View>
               ))}
+              {/* Subtotal */}
               <View style={styles.subtotalRow}>
-                <Text style={[styles.tdBold, { flex: 3.0, color: '#0056b3' }]}>Subtotal</Text>
-                <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700', color: '#0056b3' }]}>{subOrd.toFixed(0)}</Text>
-                <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700', color: '#0056b3' }]}>{subDisp.toFixed(0)}</Text>
-                <Text style={[styles.tdBal, { flex: 0.7, color: '#c62828', fontSize: 13 }]}>{subBal.toFixed(0)}</Text>
+                <Text style={[styles.tdBold, { flex: 2.9, color: '#555', letterSpacing: 1 }]}>......T O T A L......</Text>
+                <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700', color: '#1a237e', fontSize: 10 }]}>0.00</Text>
+                <Text style={[styles.td, { flex: 0.7, textAlign: 'right', fontWeight: '700', color: '#0056b3', fontSize: 10 }]}>{subIn.toFixed(2)}</Text>
+                <Text style={[styles.td, { flex: 0.7, textAlign: 'right', fontWeight: '700', color: '#0056b3', fontSize: 10 }]}>{subOut.toFixed(2)}</Text>
+                <Text style={[styles.tdBal, { flex: 0.8, fontSize: 11 }]}>{subBal.toFixed(2)}</Text>
               </View>
             </View>
           );
         })}
+      </>
+    );
+  };
+
+
+  // ── Summary mode: flat product table with party header ────────────────────
+  const renderSummaryResults = () => {
+    const partyHeader = selectedParties.length > 0
+      ? selectedParties.map(p => p.PartyName).join(' / ')
+      : null;
+    const grandInward  = reportData.reduce((s, r) => s + (parseFloat(r.Inward)  || 0), 0);
+    const grandOutward = reportData.reduce((s, r) => s + (parseFloat(r.Outward) || 0), 0);
+    const grandBalance = reportData.reduce((s, r) => s + (parseFloat(r.Balance) || 0), 0);
+    return (
+      <>
+        {partyHeader && (
+          <View style={styles.partyBanner}>
+            <Text style={styles.partyBannerText}>{partyHeader}</Text>
+          </View>
+        )}
+        {/* Column headers */}
+        <View style={[styles.tableHeader, { backgroundColor: '#0056b3' }]}>
+          <Text style={[styles.th, { flex: 2.5 }]}>Product Name and Code</Text>
+          <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Opening</Text>
+          <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Inward</Text>
+          <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Outward</Text>
+          <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Balance</Text>
+        </View>
+        {reportData.map((r, i) => (
+          <View key={i} style={[styles.tableRow, i % 2 === 0 && { backgroundColor: '#f8faff' }]}>
+            <View style={{ flex: 2.5 }}>
+              <Text style={styles.tdBold} numberOfLines={2}>{r.ProductName || '-'}</Text>
+              <Text style={[styles.tdSub, { color: '#0056b3' }]}>{r.ItemCode || ''}</Text>
+            </View>
+            <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>0.00</Text>
+            <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Inward  || 0).toFixed(2)}</Text>
+            <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Outward || 0).toFixed(2)}</Text>
+            <Text style={[styles.tdBal, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Balance || 0).toFixed(2)}</Text>
+          </View>
+        ))}
+        {/* Total row */}
         <View style={[styles.tableRow, { backgroundColor: '#e3f2fd' }]}>
-          <Text style={[styles.tdBold, { flex: 3.0 }]}>GRAND TOTAL</Text>
-          <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0).toFixed(0)}</Text>
-          <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0).toFixed(0)}</Text>
-          <Text style={[styles.tdBal, { flex: 0.7, fontSize: 14 }]}>{reportData.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0).toFixed(0)}</Text>
+          <Text style={[styles.tdBold, { flex: 2.5, letterSpacing: 1 }]}>......T O T A L......</Text>
+          <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700' }]}>0.00</Text>
+          <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700' }]}>{grandInward.toFixed(2)}</Text>
+          <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700' }]}>{grandOutward.toFixed(2)}</Text>
+          <Text style={[styles.tdBal, { flex: 0.8, textAlign: 'right', fontSize: 13 }]}>{grandBalance.toFixed(2)}</Text>
         </View>
       </>
     );
   };
 
-  const renderSummaryResults = () => (
-    <>
-      <View style={styles.tableHeader}>
-        <Text style={[styles.th, { flex: 1.2 }]}>Item</Text>
-        <Text style={[styles.th, { flex: 2 }]}>Product Name</Text>
-        <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Ord</Text>
-        <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Disp</Text>
-        <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Bal</Text>
-      </View>
-      {reportData.map((r, i) => (
-        <View key={i} style={[styles.tableRow, i % 2 === 0 && { backgroundColor: '#f8faff' }]}>
-          <Text style={[styles.tdBold, { flex: 1.2 }]} numberOfLines={1}>{r.ItemCode || '-'}</Text>
-          <Text style={[styles.td, { flex: 2 }]} numberOfLines={2}>{r.ProductName || '-'}</Text>
-          <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.OrderQty ?? '-'}</Text>
-          <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.DispatchQty ?? 0}</Text>
-          <Text style={[styles.tdBal, { flex: 0.7 }]}>{r.BalQty ?? '-'}</Text>
-        </View>
-      ))}
-      <View style={[styles.tableRow, { backgroundColor: '#e3f2fd' }]}>
-        <Text style={[styles.tdBold, { flex: 3.2 }]}>TOTAL</Text>
-        <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0).toFixed(0)}</Text>
-        <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0).toFixed(0)}</Text>
-        <Text style={[styles.tdBal, { flex: 0.7, fontSize: 14 }]}>{reportData.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0).toFixed(0)}</Text>
-      </View>
-    </>
-  );
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -606,6 +650,14 @@ const styles = StyleSheet.create({
   orderGroupHeader: { backgroundColor: '#0056b3', paddingVertical: 7, paddingHorizontal: 12, marginTop: 4 },
   orderGroupTitle: { color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
   subtotalRow: { flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#e8f4fd', borderTopWidth: 1.5, borderTopColor: '#90caf9', marginBottom: 2 },
+  // Product-grouped detail layout
+  productBlock: { marginBottom: 10, borderWidth: 1, borderColor: '#b0c8e8', borderRadius: 6, overflow: 'hidden' },
+  productGroupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f4ff', paddingVertical: 7, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: '#b0c8e8' },
+  productGroupName: { flex: 1, fontSize: 12, fontWeight: '800', color: '#1a237e', paddingRight: 8 },
+  productGroupParty: { fontSize: 11, fontWeight: '700', color: '#0056b3', flexShrink: 0 },
+  // Summary party header banner
+  partyBanner: { backgroundColor: '#e3f2fd', paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center', marginBottom: 2 },
+  partyBannerText: { fontSize: 13, fontWeight: '800', color: '#0056b3', letterSpacing: 0.5 },
   // Modals
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   modalContent: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, height: "70%", padding: 24 },
