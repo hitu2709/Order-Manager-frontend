@@ -217,6 +217,8 @@ export default function CreateOrderScreen({ navigation, route }) {
   // Inline product editing
   const [editingIndex, setEditingIndex] = useState(null);
   const [inlineEditItem, setInlineEditItem] = useState({ qty: '', rate: '', discountPercent: '', remark: '' });
+  const [inlineStockQty, setInlineStockQty] = useState(null);    // stock for inline edit
+  const [inlineStockLoading, setInlineStockLoading] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -447,13 +449,27 @@ export default function CreateOrderScreen({ navigation, route }) {
   // Open inline edit for a specific cart item
   const handleInlineEdit = (idx) => {
     const item = productsList[idx];
-    setEditingIndex(editingIndex === idx ? null : idx); // toggle
+    const isOpening = editingIndex !== idx;
+    setEditingIndex(isOpening ? idx : null);
+    if (!isOpening) return;
     setInlineEditItem({
       qty: String(item.qty),
       rate: String(item.rate),
       discountPercent: String(item.discountPercent || '0'),
       remark: item.remark || '',
     });
+    // Fetch fresh stock for this product when the panel opens
+    const code = item.itemCode;
+    if (code) {
+      setInlineStockQty(null);
+      setInlineStockLoading(true);
+      fetchProductStock(code)
+        .then(res => setInlineStockQty(res.success ? parseFloat(res.stock || 0) : 0))
+        .catch(() => setInlineStockQty(0))
+        .finally(() => setInlineStockLoading(false));
+    } else {
+      setInlineStockQty(item.stkQty ?? null);
+    }
   };
 
   // Calculate amount from inline edit fields
@@ -481,6 +497,7 @@ export default function CreateOrderScreen({ navigation, route }) {
       discount: disc.toFixed(2),
       amount: (base - disc).toFixed(2),
       remark: inlineEditItem.remark,
+      stkQty: inlineStockQty ?? updated[idx].stkQty ?? 0,  // ← persist fetched stock
     };
     setProductsList(updated);
     setEditingIndex(null);
@@ -693,6 +710,16 @@ export default function CreateOrderScreen({ navigation, route }) {
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#e8f5e9', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8 }}>
                       <Text style={{ fontSize: 12, color: '#374151' }}>Amount</Text>
                       <Text style={{ fontSize: 15, fontWeight: '800', color: '#1565C0' }}>₹{calcInlineAmount()}</Text>
+                    </View>
+                    {/* STOCK LEFT badge */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff3e0', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 6, marginBottom: 8 }}>
+                      <Text style={{ fontSize: 12, color: '#374151' }}>📦 Stock Left</Text>
+                      {inlineStockLoading
+                        ? <ActivityIndicator size="small" color="#e65100" />
+                        : <Text style={{ fontSize: 15, fontWeight: '800', color: inlineStockQty !== null && inlineStockQty <= 0 ? '#c62828' : '#e65100' }}>
+                            {inlineStockQty === null ? '—' : inlineStockQty.toFixed(2)}
+                          </Text>
+                      }
                     </View>
                     <Text style={{ fontSize: 10, color: '#6b7280', marginBottom: 2 }}>PRODUCT REMARK</Text>
                     <TextInput style={{ borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 6, padding: 8, fontSize: 13, backgroundColor: '#fff', minHeight: 50, textAlignVertical: 'top', marginBottom: 10 }} value={inlineEditItem.remark} onChangeText={(v) => setInlineEditItem(prev => ({ ...prev, remark: v }))} multiline placeholder="Remark..." />
