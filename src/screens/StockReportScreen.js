@@ -72,48 +72,60 @@ const buildPdfHtml = (data, filters, isSummary) => {
   let grandOpening = 0, grandInward = 0, grandOutward = 0, grandBalance = 0;
 
   if (isSummary) {
-    // ── Summary: flat product list with Opening/Inward/Outward/Balance ────────
-    const partyHeader = filters.partyName
-      ? `<div class="party-header">${filters.partyName}</div>` : '';
+    // ── Summary: grouped by party, product table per party ───────────────────
+    const groups = {};
+    const partyOrder = [];
+    data.forEach(r => {
+      const key = r.PartyName || 'Unknown';
+      if (!groups[key]) { groups[key] = []; partyOrder.push(key); }
+      groups[key].push(r);
+    });
 
-    const rows = data.map((r, i) => {
-      const op  = parseFloat(r.Opening)  || 0;
-      const inw = parseFloat(r.Inward)   || 0;
-      const out = parseFloat(r.Outward)  || 0;
-      const bal = parseFloat(r.Balance)  || 0;
-      grandOpening += op; grandInward += inw; grandOutward += out; grandBalance += bal;
-      return `<tr style="background:${i % 2 === 0 ? '#f8faff' : '#fff'}">
-        <td><b>${r.ProductName || '-'}</b><br/><span style="font-size:10px;color:#0056b3">${r.ItemCode || ''}</span></td>
-        <td style="text-align:right">${op.toFixed(2)}</td>
-        <td style="text-align:right">${inw.toFixed(2)}</td>
-        <td style="text-align:right">${out.toFixed(2)}</td>
-        <td style="text-align:right;color:#d32f2f;font-weight:700">${bal.toFixed(2)}</td>
-      </tr>`;
+    const partyBlocks = partyOrder.map(partyName => {
+      const rows = groups[partyName];
+      const subIn  = rows.reduce((s, r) => s + (parseFloat(r.Inward)  || 0), 0);
+      const subOut = rows.reduce((s, r) => s + (parseFloat(r.Outward) || 0), 0);
+      const subBal = rows.reduce((s, r) => s + (parseFloat(r.Balance) || 0), 0);
+      grandInward += subIn; grandOutward += subOut; grandBalance += subBal;
+
+      const productRows = rows.map((r, i) => {
+        return `<tr style="background:${i % 2 === 0 ? '#f8faff' : '#fff'}">
+          <td><b>${r.ProductName || '-'}</b><br/><span style="font-size:10px;color:#0056b3">${r.ItemCode || ''}</span></td>
+          <td style="text-align:right">0.00</td>
+          <td style="text-align:right">${parseFloat(r.Inward  || 0).toFixed(2)}</td>
+          <td style="text-align:right">${parseFloat(r.Outward || 0).toFixed(2)}</td>
+          <td style="text-align:right;color:#d32f2f;font-weight:700">${parseFloat(r.Balance || 0).toFixed(2)}</td>
+        </tr>`;
+      }).join('');
+
+      return `
+        <div class="party-block">
+          <div class="party-block-header">${partyName}</div>
+          <table>
+            <thead>
+              <tr style="background:#888;color:#fff">
+                <th>Product Name and Code</th>
+                <th style="text-align:right">Opening</th>
+                <th style="text-align:right">Inward</th>
+                <th style="text-align:right">Outward</th>
+                <th style="text-align:right">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${productRows}
+              <tr style="background:#e8f0fb;font-weight:700">
+                <td style="text-align:center;letter-spacing:2px">......T O T A L......</td>
+                <td style="text-align:right">0.00</td>
+                <td style="text-align:right">${subIn.toFixed(2)}</td>
+                <td style="text-align:right">${subOut.toFixed(2)}</td>
+                <td style="text-align:right;color:#d32f2f">${subBal.toFixed(2)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>`;
     }).join('');
 
-    bodyHtml = `
-      ${partyHeader}
-      <table>
-        <thead>
-          <tr style="background:#0056b3;color:#fff">
-            <th>Product Name and Code</th>
-            <th style="text-align:right">Opening</th>
-            <th style="text-align:right">Inward</th>
-            <th style="text-align:right">Outward</th>
-            <th style="text-align:right">Balance</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-          <tr style="background:#e3f2fd;font-weight:700">
-            <td style="text-align:center;letter-spacing:2px">......T O T A L......</td>
-            <td style="text-align:right">${grandOpening.toFixed(2)}</td>
-            <td style="text-align:right">${grandInward.toFixed(2)}</td>
-            <td style="text-align:right">${grandOutward.toFixed(2)}</td>
-            <td style="text-align:right;color:#d32f2f">${grandBalance.toFixed(2)}</td>
-          </tr>
-        </tbody>
-      </table>`;
+    bodyHtml = partyBlocks;
   } else {
     // ── Detail: group by Product ───────────────────────────────────────────────
     const groups = {};
@@ -175,10 +187,13 @@ const buildPdfHtml = (data, filters, isSummary) => {
     body{font-family:Arial,sans-serif;margin:0;padding:16px;color:#222;font-size:12px;}
     h2{margin:0 0 12px;font-size:15px;}
     .date{color:#0056b3;font-weight:700;font-size:15px;}
-    .party-header{text-align:center;color:#0056b3;font-weight:700;font-size:13px;margin-bottom:10px;}
     table{width:100%;border-collapse:collapse;margin-bottom:0;font-size:11px;}
-    th{background:#dce8f5;color:#1a237e;padding:5px 4px;text-align:left;border:1px solid #c5d8ee;font-size:10px;}
+    th{background:#888;color:#fff;padding:5px 4px;text-align:left;border:1px solid #c5d8ee;font-size:10px;}
     td{padding:4px;border:1px solid #e0e6f0;vertical-align:top;}
+    /* Summary: party blocks */
+    .party-block{margin-bottom:16px;border:1px solid #e0e7ef;border-radius:4px;overflow:hidden;}
+    .party-block-header{background:#e65100;color:#fff;font-weight:800;font-size:12px;text-align:center;padding:7px 10px;letter-spacing:.5px;}
+    /* Detail: product blocks */
     .product-block{margin-bottom:14px;border:1px solid #b0c8e8;border-radius:4px;overflow:hidden;}
     .product-header{background:#f0f4ff;padding:5px 8px;display:flex;justify-content:space-between;border-bottom:1px solid #b0c8e8;}
     .prod-name{font-weight:700;color:#1a237e;font-size:11px;}
@@ -387,52 +402,66 @@ export default function StockReportScreen({ navigation }) {
   };
 
 
-  // ── Summary mode: flat product table with party header ────────────────────
+  // ── Summary mode: group by Party ───────────────────────────────────
   const renderSummaryResults = () => {
-    const partyHeader = selectedParties.length > 0
-      ? selectedParties.map(p => p.PartyName).join(' / ')
-      : null;
-    const grandInward  = reportData.reduce((s, r) => s + (parseFloat(r.Inward)  || 0), 0);
-    const grandOutward = reportData.reduce((s, r) => s + (parseFloat(r.Outward) || 0), 0);
-    const grandBalance = reportData.reduce((s, r) => s + (parseFloat(r.Balance) || 0), 0);
+    // Build groups keyed by PartyName
+    const groups = {};
+    const order  = [];
+    reportData.forEach(r => {
+      const key = r.PartyName || 'Unknown Party';
+      if (!groups[key]) { groups[key] = []; order.push(key); }
+      groups[key].push(r);
+    });
+
     return (
       <>
-        {partyHeader && (
-          <View style={styles.partyBanner}>
-            <Text style={styles.partyBannerText}>{partyHeader}</Text>
-          </View>
-        )}
-        {/* Column headers */}
-        <View style={[styles.tableHeader, { backgroundColor: '#0056b3' }]}>
-          <Text style={[styles.th, { flex: 2.5 }]}>Product Name and Code</Text>
-          <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Opening</Text>
-          <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Inward</Text>
-          <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Outward</Text>
-          <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Balance</Text>
-        </View>
-        {reportData.map((r, i) => (
-          <View key={i} style={[styles.tableRow, i % 2 === 0 && { backgroundColor: '#f8faff' }]}>
-            <View style={{ flex: 2.5 }}>
-              <Text style={styles.tdBold} numberOfLines={2}>{r.ProductName || '-'}</Text>
-              <Text style={[styles.tdSub, { color: '#0056b3' }]}>{r.ItemCode || ''}</Text>
+        {order.map(partyName => {
+          const rows = groups[partyName];
+          const subInward  = rows.reduce((s, r) => s + (parseFloat(r.Inward)  || 0), 0);
+          const subOutward = rows.reduce((s, r) => s + (parseFloat(r.Outward) || 0), 0);
+          const subBalance = rows.reduce((s, r) => s + (parseFloat(r.Balance) || 0), 0);
+          return (
+            <View key={partyName} style={styles.partyGroup}>
+              {/* Party header — orange background like the web app */}
+              <View style={styles.partyGroupHeader}>
+                <Text style={styles.partyGroupTitle}>{partyName}</Text>
+              </View>
+              {/* Column headers */}
+              <View style={styles.tableHeader}>
+                <Text style={[styles.th, { flex: 2.2 }]}>Product Name and Code</Text>
+                <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Opening</Text>
+                <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Inward</Text>
+                <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Outward</Text>
+                <Text style={[styles.th, { flex: 0.8, textAlign: 'right' }]}>Balance</Text>
+              </View>
+              {/* Product rows */}
+              {rows.map((r, i) => (
+                <View key={i} style={[styles.tableRow, i % 2 === 0 && { backgroundColor: '#f8faff' }]}>
+                  <View style={{ flex: 2.2 }}>
+                    <Text style={styles.tdBold} numberOfLines={2}>{r.ProductName || '-'}</Text>
+                    <Text style={[styles.tdSub, { color: '#0056b3' }]}>{r.ItemCode || ''}</Text>
+                  </View>
+                  <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>0.00</Text>
+                  <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Inward  || 0).toFixed(2)}</Text>
+                  <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Outward || 0).toFixed(2)}</Text>
+                  <Text style={[styles.tdBal, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Balance || 0).toFixed(2)}</Text>
+                </View>
+              ))}
+              {/* Party subtotal */}
+              <View style={styles.subtotalRow}>
+                <Text style={[styles.tdBold, { flex: 2.2, letterSpacing: 1, color: '#37474f' }]}>......T O T A L......</Text>
+                <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700' }]}>0.00</Text>
+                <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700', color: '#0056b3' }]}>{subInward.toFixed(2)}</Text>
+                <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700', color: '#0056b3' }]}>{subOutward.toFixed(2)}</Text>
+                <Text style={[styles.tdBal, { flex: 0.8, textAlign: 'right', fontSize: 13 }]}>{subBalance.toFixed(2)}</Text>
+              </View>
             </View>
-            <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>0.00</Text>
-            <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Inward  || 0).toFixed(2)}</Text>
-            <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Outward || 0).toFixed(2)}</Text>
-            <Text style={[styles.tdBal, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Balance || 0).toFixed(2)}</Text>
-          </View>
-        ))}
-        {/* Total row */}
-        <View style={[styles.tableRow, { backgroundColor: '#e3f2fd' }]}>
-          <Text style={[styles.tdBold, { flex: 2.5, letterSpacing: 1 }]}>......T O T A L......</Text>
-          <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700' }]}>0.00</Text>
-          <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700' }]}>{grandInward.toFixed(2)}</Text>
-          <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700' }]}>{grandOutward.toFixed(2)}</Text>
-          <Text style={[styles.tdBal, { flex: 0.8, textAlign: 'right', fontSize: 13 }]}>{grandBalance.toFixed(2)}</Text>
-        </View>
+          );
+        })}
       </>
     );
   };
+
 
 
   return (
@@ -655,7 +684,11 @@ const styles = StyleSheet.create({
   productGroupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f0f4ff', paddingVertical: 7, paddingHorizontal: 10, borderBottomWidth: 1, borderBottomColor: '#b0c8e8' },
   productGroupName: { flex: 1, fontSize: 12, fontWeight: '800', color: '#1a237e', paddingRight: 8 },
   productGroupParty: { fontSize: 11, fontWeight: '700', color: '#0056b3', flexShrink: 0 },
-  // Summary party header banner
+  // Summary party-grouped styles
+  partyGroup: { marginBottom: 14, borderRadius: 6, overflow: 'hidden', borderWidth: 1, borderColor: '#e0e7ef' },
+  partyGroupHeader: { backgroundColor: '#e65100', paddingVertical: 9, paddingHorizontal: 12, alignItems: 'center' },
+  partyGroupTitle: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 0.5 },
+  // (kept for reference, no longer primary use)
   partyBanner: { backgroundColor: '#e3f2fd', paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center', marginBottom: 2 },
   partyBannerText: { fontSize: 13, fontWeight: '800', color: '#0056b3', letterSpacing: 0.5 },
   // Modals
