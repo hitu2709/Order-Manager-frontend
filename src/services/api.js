@@ -127,6 +127,12 @@ export const fetchDispatchReport = async (filters) => {
   return response.data;
 };
 
+// Fetch parties who have dispatch records (Rec_Order DC)
+export const fetchDispatchParties = async () => {
+  const response = await apiClient.get('/api/reports/dispatch-parties');
+  return response.data;
+};
+
 // Fetch dispatch numbers for cascading dropdown — pass optional {partyId, productId}
 export const fetchDispatchNumbers = async (filters = {}) => {
   const response = await apiClient.get('/api/reports/dispatch-numbers', { params: filters });
