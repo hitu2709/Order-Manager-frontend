@@ -5,7 +5,7 @@ import {
   Modal, FlatList, Platform,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { fetchDispatchParties, fetchDispatchNumbers, fetchDispatchProducts, fetchDispatchReport } from "../services/api";
+import { fetchParties, fetchProducts, fetchDispatchNumbers, fetchDispatchReport } from "../services/api";
 import Icon from "../components/Icon";
 
 const FieldLabel = ({ label }) => <Text style={styles.fieldLabel}>{label}</Text>;
@@ -94,9 +94,9 @@ export default function DispatchReportScreen({ navigation }) {
       setDropdownLoading(true);
       try {
         const [pData, dData, prodData] = await Promise.all([
-          fetchDispatchParties(),
+          fetchParties(),
           fetchDispatchNumbers(),
-          fetchDispatchProducts(),
+          fetchProducts(),
         ]);
         const p    = pData.data    || [];
         const d    = dData.data    || [];     // [{Trans_No, Vouchno}]
@@ -129,7 +129,7 @@ export default function DispatchReportScreen({ navigation }) {
     try {
       const [dData, prodData] = await Promise.all([
         fetchDispatchNumbers({ partyId: party.PartyID }),
-        fetchDispatchProducts({ partyId: party.PartyID }),
+        fetchProducts({ partyId: party.PartyID }),
       ]);
       setDispatchNos(dData.data || []);
       setProducts(prodData.data || []);
@@ -146,9 +146,9 @@ export default function DispatchReportScreen({ navigation }) {
     setDropdownLoading(true);
     try {
       const params = {};
-      if (!isAll) params.dispatchNo = dispObj.Trans_No;
+      if (!isAll) params.orderNo = dispObj.Trans_No;
       if (selectedParty?.PartyID) params.partyId = selectedParty.PartyID;
-      const prodData = await fetchDispatchProducts(Object.keys(params).length ? params : {});
+      const prodData = await fetchProducts(Object.keys(params).length ? params : {});
       setProducts(prodData.data || []);
     } catch (e) { console.error('Cascade dispatch error', e); }
     finally { setDropdownLoading(false); }
@@ -363,7 +363,7 @@ export default function DispatchReportScreen({ navigation }) {
         data={[{ Trans_No: null, Vouchno: 'All' }, ...dispatchNos]}
         title={`Select Dispatch No.${selectedParty ? ` (${selectedParty.PartyName})` : ''}`}
         placeholder="Search dispatch no..."
-        renderLabel={(d) => d.Vouchno ? String(d.Vouchno) : 'All'}
+        renderLabel={(d) => d.Vouchno !== 'All' ? `${d.Vouchno} (${d.Trans_No})` : 'All'}
         onSelect={(d) => handleDispatchSelect(d.Trans_No === null ? null : d)}
         onClose={() => setShowDispatchModal(false)}
       />
