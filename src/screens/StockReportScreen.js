@@ -228,7 +228,7 @@ export default function StockReportScreen({ navigation }) {
 
   const [selectedParties,  setSelectedParties]  = useState([]);
   const [selectedProducts, setSelectedProducts] = useState([]);
-  const [isSummary, setIsSummary]               = useState(true);
+  const [isSummary, setIsSummary] = useState(true); // locked to summary; detail hidden for now
 
   const [tempParties,  setTempParties]  = useState([]);
   const [tempProducts, setTempProducts] = useState([]);
@@ -562,7 +562,8 @@ export default function StockReportScreen({ navigation }) {
             <Icon name="chevron" size={16} color="#90a4ae" />
           </TouchableOpacity>
 
-          {/* Summary toggle */}
+          {/* REPORT MODE toggle — hidden for now (detail mode reserved for future) */}
+          {/* Uncomment below to re-enable Detail mode:
           <FieldLabel label="REPORT MODE" />
           <TouchableOpacity style={[styles.checkboxContainer, isSummary && styles.checkboxActive]}
             onPress={() => { setIsSummary(!isSummary); setReportData(null); }}>
@@ -571,6 +572,7 @@ export default function StockReportScreen({ navigation }) {
               {isSummary ? '📋 Summary Only (product totals)' : '📄 Detailed (per order)'}
             </Text>
           </TouchableOpacity>
+          */}
 
           {/* Chips */}
           {(selectedParties.length > 0 || selectedProducts.length > 0) && (
