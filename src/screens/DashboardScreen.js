@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -33,10 +33,10 @@ const REPORT_COLORS = ['#0056b3', '#009688', '#ff9800', '#e91e63'];
 
 export default function DashboardScreen({ navigation }) {
   const [reports, setReports] = useState([
-    { title: 'Total Sales', value: '0', icon: 'ðŸ’°', loading: true },
-    { title: 'Active Parties', value: '0', icon: 'ðŸ‘¥', loading: true },
-    { title: 'Pending Orders', value: '0', icon: 'â³', loading: true },
-    { title: 'Delivery Today', value: '0', icon: 'ðŸšš', loading: true },
+    { title: 'Total Sales', value: '0', icon: '💰', loading: true },
+    { title: 'Active Parties', value: '0', icon: '👥', loading: true },
+    { title: 'Pending Orders', value: '0', icon: '⏳', loading: true },
+    { title: 'Delivery Today', value: '0', icon: '🚚', loading: true },
   ]);
   const [recentOrders, setRecentOrders] = useState([]);
   const [userName, setUserName] = useState('');
@@ -83,7 +83,7 @@ export default function DashboardScreen({ navigation }) {
     });
   }, [navigation]);
 
-  // Hardware back press â†’ exit confirmation
+  // Hardware back press → exit confirmation
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
@@ -136,7 +136,7 @@ export default function DashboardScreen({ navigation }) {
     }
   };
 
-  // â”€â”€ builds the HTML string for any order â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── builds the HTML string for any order ────────────────────────────────
   const buildOrderHTML = (order) => {
     const totalAmount = (() => {
       const amt = parseFloat(order.TotalAmount);
@@ -278,7 +278,7 @@ export default function DashboardScreen({ navigation }) {
     </body></html>`;
   };
 
-  // â”€â”€ Download PDF â†’ saves to app documents dir then opens share/save sheet â”€â”€
+  // ── Download PDF → saves to app documents dir then opens share/save sheet ──
   const generateOrderPDF = async (order) => {
     try {
       setPdfLoading(true);
@@ -292,7 +292,7 @@ export default function DashboardScreen({ navigation }) {
 
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        // Opens Android share sheet â†’ user can pick Save to Downloads / Files
+        // Opens Android share sheet → user can pick Save to Downloads / Files
         await Sharing.shareAsync(destPath, {
           mimeType: 'application/pdf',
           dialogTitle: `Save Order #${orderNo}`,
@@ -309,7 +309,7 @@ export default function DashboardScreen({ navigation }) {
     }
   };
 
-  // â”€â”€ WhatsApp: generate PDF and send directly via WhatsApp â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── WhatsApp: generate PDF and send directly via WhatsApp ─────────────────
   const handleWhatsAppPDF = async (order) => {
     try {
       setWaLoading(true);
@@ -427,7 +427,7 @@ export default function DashboardScreen({ navigation }) {
       {/* Top Bar */}
       <View style={styles.topBar}>
         <View>
-          <Text style={styles.greeting}>Hello, {String(userName || 'User')} ðŸ‘‹</Text>
+          <Text style={styles.greeting}>Hello, {String(userName || 'User')} 👋</Text>
           <Text style={styles.subGreeting}>Here's your overview</Text>
         </View>
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
@@ -449,7 +449,7 @@ export default function DashboardScreen({ navigation }) {
 
           {/* Search Bar */}
           <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f0f4f8', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 10 }}>
-            <Text style={{ fontSize: 14, marginRight: 8, color: '#90a4ae' }}>ðŸ”</Text>
+            <Text style={{ fontSize: 14, marginRight: 8, color: '#90a4ae' }}>🔍</Text>
             <TextInput
               style={{ flex: 1, fontSize: 14, color: '#263238', padding: 0 }}
               placeholder="Search by party or order no..."
@@ -459,7 +459,7 @@ export default function DashboardScreen({ navigation }) {
             />
             {searchText.length > 0 && (
               <TouchableOpacity onPress={() => setSearchText('')}>
-                <Text style={{ fontSize: 16, color: '#90a4ae' }}>âœ•</Text>
+                <Text style={{ fontSize: 16, color: '#90a4ae' }}>✕</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -558,7 +558,7 @@ export default function DashboardScreen({ navigation }) {
                         navigation.navigate('CreateOrder', { editOrder: selectedOrder });
                       }}
                     >
-                      <Text style={{ fontSize: 22 }}>âœï¸</Text>
+                      <Text style={{ fontSize: 22 }}>✏️</Text>
                     </TouchableOpacity>
                     <TouchableOpacity 
                       style={{ padding: 4 }}
@@ -616,7 +616,7 @@ export default function DashboardScreen({ navigation }) {
               {/* Special Notes Section */}
               <View style={styles.transportSection}>
                 <View style={[styles.detailIconBox, { backgroundColor: '#f0f9ff' }]}>
-                  <Text style={{ fontSize: 16 }}>ðŸ“</Text>
+                  <Text style={{ fontSize: 16 }}>📝</Text>
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={styles.transportTitle}>Special Notes</Text>
@@ -658,7 +658,7 @@ export default function DashboardScreen({ navigation }) {
             </ScrollView>
           )}
 
-          {/* WhatsApp sharing footer â€” disabled for now, keep for future use */}
+          {/* WhatsApp sharing footer — disabled for now, keep for future use */}
           {/* <View style={styles.detailFooter}>
             <TouchableOpacity 
               style={styles.whatsappBtn}
@@ -667,7 +667,7 @@ export default function DashboardScreen({ navigation }) {
             >
               {waLoading
                 ? <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-                : <Text style={{ fontSize: 20, marginRight: 8 }}>ðŸ’¬</Text>
+                : <Text style={{ fontSize: 20, marginRight: 8 }}>💬</Text>
               }
               <Text style={styles.whatsappBtnText}>Share PDF via WhatsApp</Text>
             </TouchableOpacity>
@@ -708,7 +708,7 @@ export default function DashboardScreen({ navigation }) {
                   <Text style={styles.menuSubTitle}>Management Overview</Text>
                 </View>
                 <TouchableOpacity onPress={() => toggleMenu(false)} style={styles.closeBtnSmall}>
-                  <Text style={styles.closeText}>âœ•</Text>
+                  <Text style={styles.closeText}>✕</Text>
                 </TouchableOpacity>
               </View>
               
@@ -734,16 +734,18 @@ export default function DashboardScreen({ navigation }) {
                   <Text style={styles.menuItemText}>Stock Report</Text>
                 </TouchableOpacity>
                 
-                {/* Supplier Against Report — hidden for now, restore by uncommenting this block
+{/* Supplier Against Report — hidden for now. To restore, uncomment:
+                <TouchableOpacity style={styles.menuItem} onPress={() => { toggleMenu(false); navigation.navigate('SupplierOrderReport'); }}>
                   <View style={[styles.menuIconBox, { backgroundColor: '#fce4ec' }]}>
                     <Icon name="party" size={20} color="#e91e63" />
                   </View>
                   <Text style={styles.menuItemText}>Supplier Against Report</Text>
+                </TouchableOpacity>
                 */}
               </View>
 
               <View style={styles.menuFooter}>
-                <Text style={styles.footerText}>Â© 2024 Order Manager Pro</Text>
+                <Text style={styles.footerText}>© 2024 Order Manager Pro</Text>
                 <Text style={styles.footerSub}>v1.0.2</Text>
               </View>
             </SafeAreaView>
