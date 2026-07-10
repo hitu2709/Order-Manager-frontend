@@ -292,6 +292,15 @@ export default function StockReportScreen({ navigation }) {
   };
 
   const handleGenerateReport = async () => {
+    // Guard: at least one party OR product must be selected
+    if (selectedParties.length === 0 && selectedProducts.length === 0) {
+      Alert.alert(
+        'Filter Required',
+        'Please select at least one Party or one Product before generating the Stock Report.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     setLoading(true); setReportData(null);
     try {
       const res = await fetchStockReport({
@@ -302,8 +311,11 @@ export default function StockReportScreen({ navigation }) {
         summary:   isSummary,
       });
       if (res.success && res.data?.length > 0) setReportData(res.data);
-      else Alert.alert("No Data", "No records found for the selected filters.");
-    } catch (e) { Alert.alert("Error", "Failed to generate stock report."); }
+      else Alert.alert('No Data', res.message || 'No records found for the selected filters.');
+    } catch (e) {
+      const msg = e?.response?.data?.message || e.message || 'Failed to generate stock report.';
+      Alert.alert('Error', msg);
+    }
     finally { setLoading(false); }
   };
 
