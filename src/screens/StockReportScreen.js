@@ -83,6 +83,7 @@ const buildPdfHtml = (data, filters, isSummary) => {
 
     const partyBlocks = partyOrder.map(partyName => {
       const rows = groups[partyName];
+      const subOp  = rows.reduce((s, r) => s + (parseFloat(r.Opening) || 0), 0);
       const subIn  = rows.reduce((s, r) => s + (parseFloat(r.Inward)  || 0), 0);
       const subOut = rows.reduce((s, r) => s + (parseFloat(r.Outward) || 0), 0);
       const subBal = rows.reduce((s, r) => s + (parseFloat(r.Balance) || 0), 0);
@@ -91,7 +92,7 @@ const buildPdfHtml = (data, filters, isSummary) => {
       const productRows = rows.map((r, i) => {
         return `<tr style="background:${i % 2 === 0 ? '#f8faff' : '#fff'}">
           <td><b>${r.ProductName || '-'}</b><br/><span style="font-size:10px;color:#0056b3">${r.ItemCode || ''}</span></td>
-          <td style="text-align:right">0.00</td>
+          <td style="text-align:right">${parseFloat(r.Opening || 0).toFixed(2)}</td>
           <td style="text-align:right">${parseFloat(r.Inward  || 0).toFixed(2)}</td>
           <td style="text-align:right">${parseFloat(r.Outward || 0).toFixed(2)}</td>
           <td style="text-align:right;color:#d32f2f;font-weight:700">${parseFloat(r.Balance || 0).toFixed(2)}</td>
@@ -115,7 +116,7 @@ const buildPdfHtml = (data, filters, isSummary) => {
               ${productRows}
               <tr style="background:#e8f0fb;font-weight:700">
                 <td style="text-align:center;letter-spacing:2px">......T O T A L......</td>
-                <td style="text-align:right">0.00</td>
+                <td style="text-align:right">${subOp.toFixed(2)}</td>
                 <td style="text-align:right">${subIn.toFixed(2)}</td>
                 <td style="text-align:right">${subOut.toFixed(2)}</td>
                 <td style="text-align:right;color:#d32f2f">${subBal.toFixed(2)}</td>
@@ -392,7 +393,7 @@ export default function StockReportScreen({ navigation }) {
                   <Text style={[styles.td, { flex: 1.1, fontSize: 10 }]}>{r.OrderDate || '-'}</Text>
                   <Text style={[styles.td, { flex: 0.8, fontSize: 10 }]}>{r.VouchNo || '-'}</Text>
                   <Text style={[styles.td, { flex: 1.0, fontSize: 10, color: '#e65100' }]}>Opening</Text>
-                  <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontSize: 10 }]}>0.00</Text>
+                  <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontSize: 10 }]}>{parseFloat(r.Opening || 0).toFixed(2)}</Text>
                   <Text style={[styles.td, { flex: 0.7, textAlign: 'right', fontSize: 10 }]}>{parseFloat(r.Inward  || 0).toFixed(2)}</Text>
                   <Text style={[styles.td, { flex: 0.7, textAlign: 'right', fontSize: 10 }]}>{parseFloat(r.Outward || 0).toFixed(2)}</Text>
                   <Text style={[styles.tdBal, { flex: 0.8, fontSize: 10 }]}>{parseFloat(r.Balance || 0).toFixed(2)}</Text>
@@ -401,7 +402,7 @@ export default function StockReportScreen({ navigation }) {
               {/* Subtotal */}
               <View style={styles.subtotalRow}>
                 <Text style={[styles.tdBold, { flex: 2.9, color: '#555', letterSpacing: 1 }]}>......T O T A L......</Text>
-                <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700', color: '#1a237e', fontSize: 10 }]}>0.00</Text>
+                <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700', color: '#1a237e', fontSize: 10 }]}>{g.rows.reduce((s, r) => s + (parseFloat(r.Opening) || 0), 0).toFixed(2)}</Text>
                 <Text style={[styles.td, { flex: 0.7, textAlign: 'right', fontWeight: '700', color: '#0056b3', fontSize: 10 }]}>{subIn.toFixed(2)}</Text>
                 <Text style={[styles.td, { flex: 0.7, textAlign: 'right', fontWeight: '700', color: '#0056b3', fontSize: 10 }]}>{subOut.toFixed(2)}</Text>
                 <Text style={[styles.tdBal, { flex: 0.8, fontSize: 11 }]}>{subBal.toFixed(2)}</Text>
@@ -429,6 +430,7 @@ export default function StockReportScreen({ navigation }) {
       <>
         {order.map(partyName => {
           const rows = groups[partyName];
+          const subOpening = rows.reduce((s, r) => s + (parseFloat(r.Opening) || 0), 0);
           const subInward  = rows.reduce((s, r) => s + (parseFloat(r.Inward)  || 0), 0);
           const subOutward = rows.reduce((s, r) => s + (parseFloat(r.Outward) || 0), 0);
           const subBalance = rows.reduce((s, r) => s + (parseFloat(r.Balance) || 0), 0);
@@ -453,7 +455,7 @@ export default function StockReportScreen({ navigation }) {
                     <Text style={styles.tdBold} numberOfLines={2}>{r.ProductName || '-'}</Text>
                     <Text style={[styles.tdSub, { color: '#0056b3' }]}>{r.ItemCode || ''}</Text>
                   </View>
-                  <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>0.00</Text>
+                  <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Opening || 0).toFixed(2)}</Text>
                   <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Inward  || 0).toFixed(2)}</Text>
                   <Text style={[styles.td, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Outward || 0).toFixed(2)}</Text>
                   <Text style={[styles.tdBal, { flex: 0.8, textAlign: 'right' }]}>{parseFloat(r.Balance || 0).toFixed(2)}</Text>
@@ -462,7 +464,7 @@ export default function StockReportScreen({ navigation }) {
               {/* Party subtotal */}
               <View style={styles.subtotalRow}>
                 <Text style={[styles.tdBold, { flex: 2.2, letterSpacing: 1, color: '#37474f' }]}>......T O T A L......</Text>
-                <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700' }]}>0.00</Text>
+                <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700' }]}>{subOpening.toFixed(2)}</Text>
                 <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700', color: '#0056b3' }]}>{subInward.toFixed(2)}</Text>
                 <Text style={[styles.td, { flex: 0.8, textAlign: 'right', fontWeight: '700', color: '#0056b3' }]}>{subOutward.toFixed(2)}</Text>
                 <Text style={[styles.tdBal, { flex: 0.8, textAlign: 'right', fontSize: 13 }]}>{subBalance.toFixed(2)}</Text>
