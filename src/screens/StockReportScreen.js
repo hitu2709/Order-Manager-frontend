@@ -327,8 +327,10 @@ export default function StockReportScreen({ navigation }) {
       Alert.alert('Error', msg);
     }
     finally { setLoading(false); }
+  };
 
   const handleDownloadPdf = async () => {
+
     if (!reportData) return;
     setPdfLoading(true);
     try {
