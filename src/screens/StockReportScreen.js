@@ -293,15 +293,24 @@ export default function StockReportScreen({ navigation }) {
   };
 
   const handleGenerateReport = async () => {
-    // Guard: at least one party OR product must be selected
-    if (selectedParties.length === 0 && selectedProducts.length === 0) {
+    const isAllAll = selectedParties.length === 0 && selectedProducts.length === 0;
+
+    // For All x All, show a warning that it may take longer
+    if (isAllAll) {
       Alert.alert(
-        'Filter Required',
-        'Please select at least one Party or one Product before generating the Stock Report.',
-        [{ text: 'OK' }]
+        'All Parties & All Products',
+        'This will load stock data for all parties and all products. It may take up to 60 seconds. Do you want to continue?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Continue', onPress: () => _doFetch() },
+        ]
       );
       return;
     }
+    _doFetch();
+  };
+
+  const _doFetch = async () => {
     setLoading(true); setReportData(null);
     try {
       const res = await fetchStockReport({
@@ -318,7 +327,6 @@ export default function StockReportScreen({ navigation }) {
       Alert.alert('Error', msg);
     }
     finally { setLoading(false); }
-  };
 
   const handleDownloadPdf = async () => {
     if (!reportData) return;
