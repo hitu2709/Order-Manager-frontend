@@ -315,6 +315,13 @@ export default function CreateOrderScreen({ navigation, route }) {
           setSelectedSalesman(found);
         }
       }
+      // 4. Restore flag (internal flag 1/2/3) from chkOne/chkTwo/chkThree
+      if (editOrder.chkOne == 1)        setFlag("1");
+      else if (editOrder.chkTwo == 1)   setFlag("2");
+      else if (editOrder.chkThree == 1) setFlag("3");
+
+      // 5. Restore adjustment (R or M) from chek_amt
+      if (editOrder.chek_amt) setAdjustment(String(editOrder.chek_amt).trim());
     }
   }, [editOrder, salesmenData]);
 
@@ -371,6 +378,7 @@ export default function CreateOrderScreen({ navigation, route }) {
         })(),
         amount: String(p.TotalPrice || (parseFloat(p.Quantity || 0) * parseFloat(p.UnitPrice || 0)) || "0"),
         remark: p.Description || p.remark || "",
+        stkQty: parseFloat(p.StkQty || 0),
         imagePath: null,
       }));
       setProductsList(mappedProducts);
