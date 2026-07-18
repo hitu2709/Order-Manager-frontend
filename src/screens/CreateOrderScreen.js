@@ -523,6 +523,7 @@ export default function CreateOrderScreen({ navigation, route }) {
         discountPercent: parseFloat(p.discountPercent),
         remark: p.remark || "",
         stkQty: parseFloat(p.stkQty || 0),   // ← pass stock to backend
+        unit: p.unit || "",                   // ← item unit (e.g. "PCS", "BOX")
       }));
 
       const payload = {
