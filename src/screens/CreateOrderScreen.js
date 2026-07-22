@@ -600,7 +600,11 @@ export default function CreateOrderScreen({ navigation, route }) {
               <FieldLabel label="ORDER DATE" />
               <InputField
                 placeholder="2024-05-20"
-                value={new Date().toISOString().split('T')[0]}
+                value={
+                  isEditMode && editOrder?.OrderDate
+                    ? new Date(editOrder.OrderDate).toISOString().split('T')[0]
+                    : new Date().toISOString().split('T')[0]
+                }
                 editable={false}
               />
             </View>
