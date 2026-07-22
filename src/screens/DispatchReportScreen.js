@@ -334,6 +334,12 @@ export default function DispatchReportScreen({ navigation }) {
       };
       const res = await fetchDispatchReport(filters);
       if (res.success && res.data?.length > 0) {
+        // DEBUG: show actual SP column names so we can fix mappings
+        Alert.alert(
+          "SP Columns (DEBUG)",
+          "Columns:\n" + (res.columns || []).join(", ") +
+          "\n\nSample row keys:\n" + Object.keys(res.sampleRow || {}).join(", ")
+        );
         setReportData(res.data);
       } else {
         Alert.alert("No Data", res.message || "No dispatch records found for the selected filters.");
