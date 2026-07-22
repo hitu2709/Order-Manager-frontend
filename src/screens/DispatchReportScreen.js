@@ -5,6 +5,9 @@ import {
   Modal, FlatList, Platform,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system";
 import { fetchDispatchParties, fetchDispatchNumbers, fetchDispatchProducts, fetchDispatchReport } from "../services/api";
 import Icon from "../components/Icon";
 
@@ -90,7 +93,129 @@ const MultiBtn = ({ selected, renderLabel, onPress }) => {
   );
 };
 
-// ─── Group flat SP rows → parties → dispatches → items ──────────────────────
+// ─── PDF HTML Builder ────────────────────────────────────────────────────────
+const buildDispatchPdfHtml = (data, filters) => {
+  const now = new Date().toLocaleString("en-IN");
+  const f2 = (v) => parseFloat(v || 0).toFixed(2);
+  const fN = (v) => parseFloat(v || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 });
+
+  // Group the flat rows same as groupRows()
+  const g2 = (row, ...keys) => { for (const k of keys) { if (row[k] !== undefined && row[k] !== null) return row[k]; } return null; };
+  const partyMap = new Map();
+  data.forEach(row => {
+    const pCode = g2(row, "ac_code") || "";
+    const pName = g2(row, "ac_name") || "Unknown";
+    const dKey  = String(g2(row, "Trans_no", "challan_no") || "");
+    const dNo   = g2(row, "challan_no") || "";
+    const dDate = g2(row, "Date") || "";
+    const lrNo  = g2(row, "LRNo") || "-";
+    const lrDt  = g2(row, "LRDate") || "";
+    const trans = g2(row, "Transport") || "-";
+    const ordNo = g2(row, "ord_no") || "";
+    const iCode = g2(row, "Prod_code") || "";
+    const iName = g2(row, "ProdName") || "";
+    const dQty  = g2(row, "DispQty") || 0;
+    const oQty  = g2(row, "OriQty") || "";
+    const rate  = g2(row, "Rate") || 0;
+    const disc  = g2(row, "Disc") || 0;
+    const amt   = g2(row, "Amt") || 0;
+    if (!partyMap.has(pCode + pName)) partyMap.set(pCode + pName, { pName, dispatches: new Map() });
+    const party = partyMap.get(pCode + pName);
+    if (!party.dispatches.has(dKey)) party.dispatches.set(dKey, { dNo, dDate, lrNo, lrDt, trans, ordNo, items: [] });
+    const disp = party.dispatches.get(dKey);
+    if (iCode || iName) disp.items.push({ iCode, iName, dQty, oQty, rate, disc, amt });
+  });
+
+  let partyHtml = "";
+  let dispCounter = 1;
+  partyMap.forEach(party => {
+    let partyQty = 0, partyAmt = 0, partyDisc = 0;
+    let dispHtml = "";
+    party.dispatches.forEach(disp => {
+      const subQty = disp.items.reduce((s, it) => s + parseFloat(it.dQty || 0), 0);
+      const subAmt = disp.items.reduce((s, it) => s + parseFloat(it.amt || 0), 0);
+      const subDisc = disp.items.reduce((s, it) => s + parseFloat(it.disc || 0), 0);
+      partyQty += subQty; partyAmt += subAmt; partyDisc += subDisc;
+      const dateStr = disp.dDate ? (typeof disp.dDate === "string" ? disp.dDate : new Date(disp.dDate).toLocaleDateString("en-GB")) : "-";
+      const lrDtStr = disp.lrDt  ? (typeof disp.lrDt  === "string" ? disp.lrDt  : new Date(disp.lrDt).toLocaleDateString("en-GB"))  : "-";
+      const itemRows = disp.items.map((it, ii) => `
+        <tr style="background:${ii%2===0?'#f8faff':'#fff'}">
+          <td>${ii+1}</td>
+          <td><b>${it.iCode}</b><br/><small>${it.iName}</small></td>
+          <td style="text-align:right">${parseFloat(it.dQty||0).toFixed(0)}</td>
+          <td style="text-align:right">${it.oQty||''}</td>
+          <td style="text-align:right">${fN(it.rate)}</td>
+          <td style="text-align:right">${fN(it.disc)}</td>
+          <td style="text-align:right;font-weight:700">${fN(it.amt)}</td>
+        </tr>`).join("");
+      dispHtml += `
+        <tr class="disp-header">
+          <td colspan="7">
+            <b>Dispatch No. ${dispCounter}</b> &nbsp;|&nbsp; Date: ${dateStr}
+            &nbsp;|&nbsp; Order No: ${disp.ordNo}
+            &nbsp;|&nbsp; Total: ${fN(subAmt)}
+          </td>
+        </tr>
+        <tr class="disp-sub">
+          <td colspan="7">LR No: ${disp.lrNo} &nbsp;|&nbsp; LR Date: ${lrDtStr} &nbsp;|&nbsp; Transport: ${disp.trans}</td>
+        </tr>
+        <tr class="col-header">
+          <th>Sr</th><th>Item Code / Name</th><th style="text-align:right">Disp Qty</th>
+          <th style="text-align:right">Ori Qty</th><th style="text-align:right">Rate</th>
+          <th style="text-align:right">Disc</th><th style="text-align:right">Amount</th>
+        </tr>
+        ${itemRows}
+        <tr class="subtotal-row">
+          <td colspan="2" style="text-align:right;font-weight:700;color:#0056b3">Subtotal</td>
+          <td style="text-align:right;font-weight:700;color:#cc0000">${subQty.toFixed(0)}</td>
+          <td></td><td></td>
+          <td style="text-align:right;font-weight:700;color:#cc0000">${fN(subDisc)}</td>
+          <td style="text-align:right;font-weight:700;color:#cc0000">${fN(subAmt)}</td>
+        </tr>`;
+      dispCounter++;
+    });
+    partyHtml += `
+      <tr class="party-header"><td colspan="7">Party: ${party.pName}</td></tr>
+      ${dispHtml}
+      <tr class="party-total">
+        <td colspan="2" style="font-weight:700">Party Wise Total</td>
+        <td style="text-align:right;font-weight:800">${partyQty.toFixed(0)}</td>
+        <td></td><td></td>
+        <td style="text-align:right;font-weight:800">${fN(partyDisc)}</td>
+        <td style="text-align:right;font-weight:800">${fN(partyAmt)}</td>
+      </tr>`;
+  });
+
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
+  <style>
+    body{font-family:Arial,sans-serif;margin:0;padding:20px;color:#1a237e;font-size:12px;}
+    .header{background:linear-gradient(135deg,#0056b3,#1976d2);color:#fff;padding:20px 24px;border-radius:10px;margin-bottom:20px;}
+    .header h1{margin:0;font-size:22px;letter-spacing:1px;}
+    .header p{margin:4px 0 0;font-size:13px;opacity:.85;}
+    .meta{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+    .meta-box{background:#e3f2fd;border-radius:8px;padding:8px 14px;font-size:11px;}
+    .meta-box b{display:block;color:#0056b3;font-size:13px;margin-top:2px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:0;}
+    td,th{padding:6px 8px;border-bottom:1px solid #e8eaf6;vertical-align:top;}
+    .party-header td{background:#1565c0;color:#fff;font-weight:700;font-size:13px;padding:8px 10px;border-top:4px solid #fff;}
+    .disp-header td{background:#FFF176;color:#1a1a00;font-size:11px;padding:6px 8px;border-bottom:1px solid #e0cc00;}
+    .disp-sub td{background:#FFFDE7;color:#555;font-size:10px;padding:4px 8px;border-bottom:1px solid #e0cc00;}
+    .col-header th{background:#0056b3;color:#fff;font-size:10px;letter-spacing:.4px;text-align:left;}
+    .subtotal-row td{background:#FFF9C4;border-top:1.5px solid #e0cc00;}
+    .party-total td{background:#e3f2fd;border-top:2px solid #0056b3;font-size:12px;}
+    .footer{margin-top:18px;text-align:right;font-size:11px;color:#555;}
+  </style></head><body>
+  <div class="header"><h1>📦 Dispatch Report</h1><p>Generated on ${now}</p></div>
+  <div class="meta">
+    <div class="meta-box">Period<b>${filters.fromDate} → ${filters.toDate}</b></div>
+    <div class="meta-box">Party<b>${filters.partyLabel || 'All Parties'}</b></div>
+    <div class="meta-box">Records<b>${data.length} rows</b></div>
+  </div>
+  <table><tbody>${partyHtml}</tbody></table>
+  <div class="footer">Dispatch Report • ${now}</div>
+</body></html>`;
+};
+
 function groupRows(rows) {
   const partyMap = new Map();
 
@@ -273,6 +398,7 @@ export default function DispatchReportScreen({ navigation }) {
   const [loading, setLoading]               = useState(false);
   const [dropdownLoading, setDropdownLoading] = useState(false);
   const [reportData, setReportData]         = useState(null);
+  const [pdfLoading, setPdfLoading]         = useState(false);
 
   const [allParties, setAllParties]         = useState([]);
   const [allDispatchNos, setAllDispatchNos] = useState([]);
@@ -343,6 +469,32 @@ export default function DispatchReportScreen({ navigation }) {
       setLoading(false);
     }
   };
+
+  const handleDownloadPdf = async () => {
+    if (!reportData) return;
+    setPdfLoading(true);
+    try {
+      const partyLabel = selParties.length > 0 ? selParties.map(p => p.PartyName).join(", ") : null;
+      const html = buildDispatchPdfHtml(reportData, {
+        fromDate: toDisplay(fromDate),
+        toDate:   toDisplay(toDate),
+        partyLabel,
+      });
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const safeParty = (partyLabel || 'AllParties').replace(/[^a-zA-Z0-9]/g, '_');
+      const today = toDisplay(new Date()).replace(/\//g, '-');
+      const fileName = `Dispatch_${safeParty}_${today}.pdf`;
+      const destUri = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.copyAsync({ from: uri, to: destUri });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(destUri, { mimeType: "application/pdf", dialogTitle: "Dispatch Report", UTI: "com.adobe.pdf" });
+      } else {
+        Alert.alert("PDF Saved", `Saved as: ${fileName}`);
+      }
+    } catch (e) { Alert.alert("Error", "Failed to generate PDF: " + e.message); }
+    finally { setPdfLoading(false); }
+  };
+
 
   const dispLabel = (d) => d.Vouchno ? `${d.Vouchno}  (${d.Trans_No})` : String(d.Trans_No);
 
@@ -427,8 +579,18 @@ export default function DispatchReportScreen({ navigation }) {
         {/* Crystal Report output */}
         {reportData && (
           <View style={[styles.card, { padding: 0, overflow: "hidden" }]}>
-            <View style={styles.reportTitleBar}>
+            <View style={[styles.reportTitleBar, { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 14 }]}>
               <Text style={styles.reportTitleText}>Dispatch Report</Text>
+              <TouchableOpacity
+                style={[styles.pdfBtn, pdfLoading && { opacity: 0.6 }]}
+                onPress={handleDownloadPdf}
+                disabled={pdfLoading}
+              >
+                {pdfLoading
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Text style={styles.pdfBtnText}>📄 PDF</Text>
+                }
+              </TouchableOpacity>
             </View>
             <ReportView data={reportData} />
           </View>
@@ -509,4 +671,6 @@ const styles = StyleSheet.create({
   partyTotalRow: { flexDirection: "row", alignItems: "center", backgroundColor: "#e8f0fe", paddingVertical: 8, paddingHorizontal: 6, borderTopWidth: 2, borderTopColor: "#0056b3", marginTop: 2 },
   partyTotalLabel: { fontSize: 12, fontWeight: "700", color: "#0056b3", flex: 1 },
   partyTotalNum: { fontSize: 12, fontWeight: "800", color: "#0056b3", textAlign: "right" },
+  pdfBtn: { backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.5)" },
+  pdfBtnText: { color: "#fff", fontWeight: "700", fontSize: 13 },
 });
