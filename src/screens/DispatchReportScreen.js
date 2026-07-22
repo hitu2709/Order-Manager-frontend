@@ -96,30 +96,29 @@ function groupRows(rows) {
 
   rows.forEach(row => {
     // Flexible column reading
-    const partyCode = g(row, "Acc_Code", "ac_code", "Party_Code") || "";
-    const partyName = g(row, "Ac_Name", "ac_name", "PartyName", "Party_Name") || "Unknown Party";
+    const partyCode = g(row, "ac_code") || "";
+    const partyName = g(row, "ac_name") || "Unknown Party";
 
-    // Dispatch grouping key (use challan trans_no or dispatch sequential no)
-    const dispKey   = String(g(row, "trans_no", "Trans_No", "Cha_No", "DispatchID") || "");
-    const dispNo    = g(row, "Dispatch_No", "Cha_No", "DispatchNo", "Sr_No") || "";
-    const dispDate  = g(row, "Cha_dt", "Dispatch_Dt", "Date", "DispatchDate") || "";
-    const packChrg  = g(row, "Pack_Chrg", "Packing_Charge", "PackCharge", "packing") || 0;
-    const vatAmt    = g(row, "Vat_Amt", "VatAmt", "VAT") || 0;
-    const lrNo      = g(row, "LR_No", "Lr_No", "LRNo") || "-";
-    const lrDate    = g(row, "LR_Dt", "Lr_Dt", "LRDate") || "";
-    const transport = g(row, "Transport", "transport") || "-";
-    const ordNo     = g(row, "Ord_no", "Ord_No", "OrderNo", "VouchNo") || "";
-    const totalAmt  = g(row, "Total_Amt", "TotalAmt", "total_amt") || 0;
+    // Dispatch grouping key — use challan_no (the dispatch serial for the day)
+    const dispKey   = String(g(row, "Trans_no", "challan_no") || "");
+    const dispNo    = g(row, "challan_no") || "";
+    const dispDate  = g(row, "Date") || "";
+    const packChrg  = 0;  // Not in SP
+    const vatAmt    = 0;  // Not in SP
+    const lrNo      = g(row, "LRNo") || "-";
+    const lrDate    = g(row, "LRDate") || "";
+    const transport = g(row, "Transport") || "-";
+    const ordNo     = g(row, "ord_no") || "";
 
-    // Item fields
-    const sr       = g(row, "SrNo", "Sr", "sr_no", "srno") || "";
-    const itemCode = g(row, "Pr_code", "pr_code", "ItemCode", "Item_Code", "Prod_Code") || "";
-    const itemName = g(row, "Prod_name", "prod_name", "ItemName", "Item_Name", "product_name") || "";
-    const dispQty  = g(row, "Qty", "Disp_Qty", "DispQty", "qty") || 0;
-    const ordQty   = g(row, "Ord_Qty", "Order_Qty", "OrdQty") || "";
-    const rate     = g(row, "Rate", "rate") || 0;
-    const disc     = g(row, "Disc", "Discount", "discount") || 0;
-    const amount   = g(row, "Amount", "amount", "Net_Amt", "net_amt") || 0;
+    // Item fields — exact SP column names
+    const sr       = g(row, "ord_sr_no") || "";
+    const itemCode = g(row, "Prod_code") || "";
+    const itemName = g(row, "ProdName") || "";
+    const dispQty  = g(row, "DispQty") || 0;
+    const ordQty   = g(row, "OriQty") || "";
+    const rate     = g(row, "Rate") || 0;
+    const disc     = g(row, "Disc") || 0;
+    const amount   = g(row, "Amt") || 0;
 
     // Build party
     if (!partyMap.has(partyCode + partyName)) {
@@ -127,16 +126,16 @@ function groupRows(rows) {
     }
     const party = partyMap.get(partyCode + partyName);
 
-    // Build dispatch
+    // Build dispatch (totalAmt calculated from items sum)
     if (!party.dispatchMap.has(dispKey)) {
       party.dispatchMap.set(dispKey, {
         dispKey, dispNo, dispDate, packChrg, vatAmt,
-        lrNo, lrDate, transport, ordNo, totalAmt, items: []
+        lrNo, lrDate, transport, ordNo, items: []
       });
     }
     const dispatch = party.dispatchMap.get(dispKey);
 
-    // Add item (only if it has meaningful data)
+    // Add item
     if (itemCode || itemName) {
       dispatch.items.push({ sr, itemCode, itemName, dispQty, ordQty, rate, disc, amount });
     }
@@ -164,9 +163,9 @@ const ReportView = ({ data }) => {
     <ScrollView horizontal>
       <View style={{ minWidth: 700 }}>
         {parties.map((party, pi) => {
-          // Party totals
-          const partyTotalQty = party.dispatches.reduce((s, d) => s + d.items.reduce((si, it) => si + parseFloat(it.dispQty || 0), 0), 0);
-          const partyTotalAmt = party.dispatches.reduce((s, d) => s + parseFloat(d.totalAmt || 0), 0);
+          // Party totals — calculated from all item amounts
+          const partyTotalQty  = party.dispatches.reduce((s, d) => s + d.items.reduce((si, it) => si + parseFloat(it.dispQty || 0), 0), 0);
+          const partyTotalAmt  = party.dispatches.reduce((s, d) => s + d.items.reduce((si, it) => si + parseFloat(it.amount || 0), 0), 0);
           const partyTotalDisc = party.dispatches.reduce((s, d) => s + d.items.reduce((si, it) => si + parseFloat(it.disc || 0), 0), 0);
           const partyTotalRate = party.dispatches.reduce((s, d) => s + d.items.reduce((si, it) => si + parseFloat(it.rate || 0), 0), 0);
 
@@ -334,12 +333,6 @@ export default function DispatchReportScreen({ navigation }) {
       };
       const res = await fetchDispatchReport(filters);
       if (res.success && res.data?.length > 0) {
-        // DEBUG: show actual SP column names so we can fix mappings
-        Alert.alert(
-          "SP Columns (DEBUG)",
-          "Columns:\n" + (res.columns || []).join(", ") +
-          "\n\nSample row keys:\n" + Object.keys(res.sampleRow || {}).join(", ")
-        );
         setReportData(res.data);
       } else {
         Alert.alert("No Data", res.message || "No dispatch records found for the selected filters.");
