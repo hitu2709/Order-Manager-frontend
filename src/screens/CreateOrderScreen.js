@@ -554,8 +554,14 @@ export default function CreateOrderScreen({ navigation, route }) {
         : await createOrder(payload);
 
       if (res.success) {
-        Alert.alert("Success", `Order ${isEditMode ? 'updated' : 'created'} successfully!`, [
-          { text: "OK", onPress: () => navigation.replace("Dashboard") }
+        const orderCount = res.orderCount || 1;
+        const successMsg = isEditMode
+          ? 'Order updated successfully!'
+          : orderCount > 1
+            ? `${orderCount} orders created!\n(${productsList.length} products split into groups of 100)`
+            : 'Order created successfully!';
+        Alert.alert('Success', successMsg, [
+          { text: 'OK', onPress: () => navigation.replace('Dashboard') }
         ]);
       }
     } catch (err) {
@@ -668,7 +674,25 @@ export default function CreateOrderScreen({ navigation, route }) {
         {/* ── Items Details (cart) ── */}
         {productsList.length > 0 && (
           <SectionCard style={{ marginTop: 12 }}>
-            <Text style={styles.sectionTitle}>Items Details ({productsList.length})</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={styles.sectionTitle}>Items Details ({productsList.length})</Text>
+              {productsList.length >= 90 && (
+                <View style={productsList.length >= 100 ? styles.splitBanner : styles.warnBanner}>
+                  <Text style={styles.splitBannerText}>
+                    {productsList.length >= 100
+                      ? `⚡ ${Math.ceil(productsList.length / 100)} orders`
+                      : `${productsList.length}/100`}
+                  </Text>
+                </View>
+              )}
+            </View>
+            {productsList.length >= 100 && (
+              <View style={styles.splitInfoBox}>
+                <Text style={styles.splitInfoText}>
+                  ⚠️  Max 100 products per order — will auto-create {Math.ceil(productsList.length / 100)} orders (items 1–100 in order 1, 101–200 in order 2, etc.)
+                </Text>
+              </View>
+            )}
             {productsList.map((item, idx) => (
               <View key={idx} style={{ backgroundColor: editingIndex === idx ? '#eef2ff' : '#fafcff', borderWidth: 1, borderColor: editingIndex === idx ? '#818cf8' : '#e0e7ef', borderRadius: 10, padding: 12, marginTop: 10 }}>
                 {/* Row 1: Name and Total */}
@@ -1057,7 +1081,12 @@ const styles = StyleSheet.create({
   actionIcon: { padding: 6, backgroundColor: '#f5f7fa', borderRadius: 6 },
   tinyModal: { backgroundColor: '#fff', width: 100, borderRadius: 10, padding: 5, alignSelf: 'center' },
   adjItem: { padding: 15, borderBottomWidth: 1, borderBottomColor: '#eee', alignItems: 'center' },
-  adjItemText: { fontSize: 16, fontWeight: '600', color: '#333' }
+  adjItemText: { fontSize: 16, fontWeight: '600', color: '#333' },
+  warnBanner: { backgroundColor: '#fff3cd', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1, borderColor: '#ffc107' },
+  splitBanner: { backgroundColor: '#ff6b35', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  splitBannerText: { fontSize: 11, fontWeight: '800', color: '#fff' },
+  splitInfoBox: { backgroundColor: '#fff3cd', borderRadius: 8, padding: 10, marginBottom: 8, borderLeftWidth: 3, borderLeftColor: '#ff6b35' },
+  splitInfoText: { fontSize: 12, color: '#7a4400', lineHeight: 18 },
 });
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
