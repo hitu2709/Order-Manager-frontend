@@ -237,12 +237,18 @@ function groupRows(rows) {
     const dispKey   = String(g(row, "Trans_no", "challan_no") || "");
     const dispNo    = g(row, "challan_no") || "";
     const dispDate  = g(row, "Date") || "";
-    const packChrg  = 0;  // Not in SP
-    const vatAmt    = 0;  // Not in SP
+    const packChrg  = 0;  // legacy placeholder
     const lrNo      = g(row, "LRNo") || "-";
     const lrDate    = g(row, "LRDate") || "";
     const transport = g(row, "Transport") || "-";
     const ordNo     = g(row, "ord_no") || "";
+    // Packing charge from dbo.challan (injected by backend)
+    const pcs      = parseFloat(g(row, "_pcs")     || 0);
+    const sqrMtr   = parseFloat(g(row, "_sqrMtr")  || 0);
+    const grsWgt   = parseFloat(g(row, "_grsWgt")  || 0);
+    const pcs1     = parseFloat(g(row, "_pcs1")    || 0);
+    const sqrMtr1  = parseFloat(g(row, "_sqrMtr1") || 0);
+    const grsWgt1  = parseFloat(g(row, "_grsWgt1") || 0);
 
     // Item fields — exact SP column names
     const sr       = g(row, "ord_sr_no") || "";
@@ -260,11 +266,13 @@ function groupRows(rows) {
     }
     const party = partyMap.get(partyCode + partyName);
 
-    // Build dispatch (totalAmt calculated from items sum)
+    // Build dispatch (totalAmt calculated from items sum + packing charge)
     if (!party.dispatchMap.has(dispKey)) {
       party.dispatchMap.set(dispKey, {
-        dispKey, dispNo, dispDate, packChrg, vatAmt,
-        lrNo, lrDate, transport, ordNo, items: []
+        dispKey, dispNo, dispDate, packChrg,
+        lrNo, lrDate, transport, ordNo,
+        pcs, sqrMtr, grsWgt, pcs1, sqrMtr1, grsWgt1,
+        items: []
       });
     }
     const dispatch = party.dispatchMap.get(dispKey);
@@ -332,23 +340,36 @@ const ReportView = ({ data }) => {
 
                 return (
                   <View key={di}>
-                    {/* Dispatch Header row 1 (yellow) */}
+                    {/* Dispatch Header row 1 — No. + Date only */}
                     <View style={styles.dispHeader}>
-                      <Text style={styles.dispHeaderText}>Dispatch No. {disp.seqNo}{"          "}</Text>
-                      <Text style={styles.dispHeaderText}>Date :- {dateStr}{"          "}</Text>
-                      <Text style={styles.dispHeaderText}>Packing Charge :- {fmt2(disp.packChrg)}{"          "}</Text>
-                      <Text style={styles.dispHeaderText}>Vat Amt :- {fmt2(disp.vatAmt)}</Text>
+                      <Text style={styles.dispHeaderText}>Dispatch No. {disp.seqNo}{"     "}</Text>
+                      <Text style={styles.dispHeaderText}>Date :- {dateStr}</Text>
                     </View>
-                    {/* Dispatch Header row 2 */}
+                    {/* Dispatch Header row 2 — LR info + Transport */}
                     <View style={styles.dispHeader}>
-                      <Text style={styles.dispHeaderText}>LR No :- {disp.lrNo}{"          "}</Text>
-                      <Text style={styles.dispHeaderText}>LR Date :- {lrDateStr}{"          "}</Text>
+                      <Text style={styles.dispHeaderText}>LR No :- {disp.lrNo}{"     "}</Text>
+                      <Text style={styles.dispHeaderText}>LR Date :- {lrDateStr}{"     "}</Text>
                       <Text style={styles.dispHeaderText}>Transport :- {disp.transport}</Text>
                     </View>
-                    {/* Dispatch Header row 3 */}
+                    {/* Dispatch Header row 3 — Packing Charge (below transport) */}
+                    {(disp.grsWgt > 0 || disp.grsWgt1 > 0) && (
+                      <View style={styles.dispHeader}>
+                        {disp.grsWgt > 0 && (
+                          <Text style={styles.dispHeaderText}>
+                            Pack: {disp.pcs}*{disp.sqrMtr}={disp.grsWgt}{"     "}
+                          </Text>
+                        )}
+                        {disp.grsWgt1 > 0 && (
+                          <Text style={styles.dispHeaderText}>
+                            Pack2: {disp.pcs1}*{disp.sqrMtr1}={disp.grsWgt1}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                    {/* Dispatch Header row 4 — Order No + Total (items + packing) */}
                     <View style={styles.dispHeader}>
-                      <Text style={styles.dispHeaderText}>Order No.  {disp.ordNo}{"          "}</Text>
-                      <Text style={styles.dispHeaderText}>Total Amt.  {fmtN(disp.totalAmt)}</Text>
+                      <Text style={styles.dispHeaderText}>Order No.  {disp.ordNo}{"     "}</Text>
+                      <Text style={styles.dispHeaderText}>Total Amt.  {fmtN(subAmt + (disp.grsWgt || 0) + (disp.grsWgt1 || 0))}</Text>
                     </View>
 
                     {/* Column Header */}
