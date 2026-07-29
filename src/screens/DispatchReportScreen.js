@@ -152,7 +152,6 @@ const buildDispatchPdfHtml = (data, filters) => {
           <td style="text-align:center;font-weight:700">${it.srNo || (ii+1)}</td>
           <td><b>${it.iCode}</b><br/><small>${it.iName}</small></td>
           <td style="text-align:right">${parseFloat(it.dQty||0).toFixed(0)}</td>
-          <td style="text-align:right">${it.oQty||''}</td>
           <td style="text-align:right">${fN(it.rate)}</td>
           <td style="text-align:right">${fN(it.disc)}</td>
           <td style="text-align:right;font-weight:700">${fN(it.amt)}</td>
@@ -170,26 +169,26 @@ const buildDispatchPdfHtml = (data, filters) => {
         </tr>
         <tr class="col-header">
           <th>Sr</th><th>Item Code / Name</th><th style="text-align:right">Disp Qty</th>
-          <th style="text-align:right">Ori Qty</th><th style="text-align:right">Rate</th>
+          <th style="text-align:right">Rate</th>
           <th style="text-align:right">Disc</th><th style="text-align:right">Amount</th>
         </tr>
         ${itemRows}
         <tr class="subtotal-row">
           <td colspan="2" style="text-align:right;font-weight:700;color:#0056b3">Subtotal</td>
           <td style="text-align:right;font-weight:700;color:#cc0000">${subQty.toFixed(0)}</td>
-          <td></td><td></td>
+          <td></td>
           <td style="text-align:right;font-weight:700;color:#cc0000">${fN(subDisc)}</td>
           <td style="text-align:right;font-weight:700;color:#cc0000">${fN(subAmt)}</td>
         </tr>`;
       dispCounter++;
     });
     partyHtml += `
-      <tr class="party-header"><td colspan="7">Party: ${party.pName}</td></tr>
+      <tr class="party-header"><td colspan="6">Party: ${party.pName}</td></tr>
       ${dispHtml}
       <tr class="party-total">
         <td colspan="2" style="font-weight:700">Party Wise Total</td>
         <td style="text-align:right;font-weight:800">${partyQty.toFixed(0)}</td>
-        <td></td><td></td>
+        <td></td>
         <td style="text-align:right;font-weight:800">${fN(partyDisc)}</td>
         <td style="text-align:right;font-weight:800">${fN(partyAmt)}</td>
       </tr>`;
@@ -378,7 +377,6 @@ const ReportView = ({ data }) => {
                       <Text style={[styles.colTh, { width: 110 }]}>Item Code</Text>
                       <Text style={[styles.colTh, { flex: 1 }]}>Item Name</Text>
                       <Text style={[styles.colTh, { width: 60, textAlign: "right" }]}>Disp Qty</Text>
-                      <Text style={[styles.colTh, { width: 50, textAlign: "right" }]}>Qty</Text>
                       <Text style={[styles.colTh, { width: 70, textAlign: "right" }]}>Rate</Text>
                       <Text style={[styles.colTh, { width: 60, textAlign: "right" }]}>Disc</Text>
                       <Text style={[styles.colTh, { width: 80, textAlign: "right" }]}>Amount</Text>
@@ -391,20 +389,18 @@ const ReportView = ({ data }) => {
                         <Text style={[styles.td, { width: 110 }]} numberOfLines={1}>{item.itemCode}</Text>
                         <Text style={[styles.td, { flex: 1 }]} numberOfLines={2}>{item.itemName}</Text>
                         <Text style={[styles.td, { width: 60, textAlign: "right" }]}>{parseFloat(item.dispQty || 0).toFixed(0)}</Text>
-                        <Text style={[styles.td, { width: 50, textAlign: "right" }]}>{item.ordQty || ""}</Text>
                         <Text style={[styles.td, { width: 70, textAlign: "right" }]}>{fmtN(item.rate)}</Text>
                         <Text style={[styles.td, { width: 60, textAlign: "right" }]}>{fmtN(item.disc)}</Text>
                         <Text style={[styles.td, { width: 80, textAlign: "right", fontWeight: "600" }]}>{fmtN(item.amount)}</Text>
                       </View>
                     ))}
 
-                    {/* Dispatch subtotal (red/bold like report) */}
+                    {/* Dispatch subtotal */}
                     <View style={styles.subTotalRow}>
                       <Text style={[styles.subTotalCell, { width: 30 }]}></Text>
                       <Text style={[styles.subTotalCell, { width: 110 }]}></Text>
                       <Text style={[styles.subTotalCell, { flex: 1 }]}></Text>
                       <Text style={[styles.subTotalNum, { width: 60 }]}>{subQty.toFixed(0)}</Text>
-                      <Text style={[styles.subTotalNum, { width: 50 }]}></Text>
                       <Text style={[styles.subTotalNum, { width: 70 }]}>{fmtN(subRate)}</Text>
                       <Text style={[styles.subTotalNum, { width: 60 }]}>{fmtN(subDisc)}</Text>
                       <Text style={[styles.subTotalNum, { width: 80 }]}>{fmtN(subAmt)}</Text>
@@ -417,7 +413,6 @@ const ReportView = ({ data }) => {
               <View style={styles.partyTotalRow}>
                 <Text style={[styles.partyTotalLabel, { flex: 1 }]}>Party Wise Total</Text>
                 <Text style={[styles.partyTotalNum, { width: 60 }]}>{partyTotalQty.toFixed(0)}</Text>
-                <Text style={[styles.partyTotalNum, { width: 50 }]}></Text>
                 <Text style={[styles.partyTotalNum, { width: 70 }]}>{fmtN(partyTotalRate)}</Text>
                 <Text style={[styles.partyTotalNum, { width: 60 }]}>{fmtN(partyTotalDisc)}</Text>
                 <Text style={[styles.partyTotalNum, { width: 80 }]}>{fmtN(partyTotalAmt)}</Text>
