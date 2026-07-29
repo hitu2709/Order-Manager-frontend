@@ -539,7 +539,7 @@ export default function DispatchReportScreen({ navigation }) {
           <Icon name="back" size={22} color="#fff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Dispatch Report</Text>
-        <TouchableOpacity onPress={handleReset} style={{ padding: 4 }}>
+        <TouchableOpacity onPress={handleReset} style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)', backgroundColor: 'rgba(255,255,255,0.15)' }}>
           <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>RESET</Text>
         </TouchableOpacity>
       </View>
