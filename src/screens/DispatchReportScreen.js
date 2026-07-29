@@ -648,7 +648,7 @@ export default function DispatchReportScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#f0f4f8" },
-  header: { backgroundColor: "#0056b3", flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14 },
+  header: { backgroundColor: "#0056b3", flexDirection: "row", alignItems: "center", paddingHorizontal: 14, paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 24) + 8 : 14, paddingBottom: 14, elevation: 4 },
   headerBack: { marginRight: 12 },
   headerTitle: { flex: 1, color: "#fff", fontSize: 18, fontWeight: "700" },
   scroll: { flex: 1 },
