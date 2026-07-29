@@ -116,7 +116,7 @@ const buildPdfHtml = (data, filters) => {
 
   const colHeaders = `
     <tr class="col-header">
-      <th>Order No.</th><th>Date</th><th>Item</th>
+      <th>Sr</th><th>Item</th>
       <th style="text-align:center">Ord Qty</th>
       <th style="text-align:center">Disp Qty</th>
       <th style="text-align:center">Bal Qty</th>
@@ -130,8 +130,7 @@ const buildPdfHtml = (data, filters) => {
 
     const dataRows = group.rows.map((r, i) => `
       <tr style="background:${i % 2 === 0 ? '#f8faff' : '#fff'}">
-        <td>${r.VouchNo || r.OrderNo || '-'}</td>
-        <td>${r.OrderDate || r.trans_dt || '-'}</td>
+        <td style="text-align:center;font-weight:700">${r.SrNo ?? (i + 1)}</td>
         <td>${r.ItemCode ? `<b>${r.ItemCode}</b><br/><small>${r.ProductName || ''}</small>` : '-'}</td>
         <td style="text-align:center">${r.OrderQty ?? r.TotalQty ?? '-'}</td>
         <td style="text-align:center">${r.DispatchQty ?? r.DesptchQty ?? 0}</td>
@@ -140,12 +139,12 @@ const buildPdfHtml = (data, filters) => {
 
     return `
       <tr class="group-header">
-        <td colspan="7">#${firstRow.VouchNo || firstRow.OrderNo} &nbsp;•&nbsp; ${firstRow.PartyName || firstRow.CustomerName || ''} &nbsp;•&nbsp; ${firstRow.OrderDate || firstRow.trans_dt || ''}</td>
+        <td colspan="6">#${firstRow.VouchNo || firstRow.OrderNo} &nbsp;•&nbsp; ${firstRow.PartyName || firstRow.CustomerName || ''} &nbsp;•&nbsp; ${firstRow.OrderDate || firstRow.trans_dt || ''}</td>
       </tr>
       ${colHeaders}
       ${dataRows}
       <tr class="subtotal-row">
-        <td colspan="3" style="text-align:right;padding-right:12px;color:#0056b3;font-weight:700">Subtotal</td>
+        <td colspan="2" style="text-align:right;padding-right:12px;color:#0056b3;font-weight:700">Subtotal</td>
         <td style="text-align:center;color:#0056b3;font-weight:700">${subOrd.toFixed(0)}</td>
         <td style="text-align:center;color:#0056b3;font-weight:700">${subDisp.toFixed(0)}</td>
         <td style="text-align:center;color:#d32f2f;font-weight:700">${subBal.toFixed(0)}</td>
@@ -191,7 +190,7 @@ const buildPdfHtml = (data, filters) => {
     <tbody>
       ${groupedRows}
       <tr class="total-row">
-        <td colspan="3" style="text-align:right;padding-right:12px">GRAND TOTAL</td>
+        <td colspan="2" style="text-align:right;padding-right:12px">GRAND TOTAL</td>
         <td style="text-align:center">${grandOrd.toFixed(0)}</td>
         <td style="text-align:center">${grandDisp.toFixed(0)}</td>
         <td style="text-align:center;color:#d32f2f">${grandBal.toFixed(0)}</td>
@@ -533,7 +532,7 @@ export default function PendingReportScreen({ navigation }) {
 
               const TableHeader = () => (
                 <View style={styles.tableHeader}>
-                  <Text style={[styles.th, { flex: 1.5 }]}>Order</Text>
+                  <Text style={[styles.th, { width: 36 }]}>Sr</Text>
                   <Text style={[styles.th, { flex: 2 }]}>Item</Text>
                   <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Ord</Text>
                   <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Disp</Text>
@@ -557,10 +556,7 @@ export default function PendingReportScreen({ navigation }) {
                     <TableHeader />
                     {group.rows.map((r, i) => (
                       <View key={i} style={[styles.tableRow, i % 2 === 0 && { backgroundColor: '#f8faff' }]}>
-                        <View style={{ flex: 1.5 }}>
-                          <Text style={styles.tdBold}>{r.VouchNo || r.OrderNo}</Text>
-                          <Text style={styles.tdSub}>{r.OrderDate || r.trans_dt}</Text>
-                        </View>
+                        <Text style={[styles.tdBold, { width: 36, textAlign: 'center', color: '#0056b3' }]}>{r.SrNo ?? (i + 1)}</Text>
                         <View style={{ flex: 2 }}>
                           <Text style={styles.tdBold} numberOfLines={1}>{r.ItemCode || '-'}</Text>
                           <Text style={styles.tdSub} numberOfLines={2}>{r.ProductName}</Text>
@@ -584,7 +580,7 @@ export default function PendingReportScreen({ navigation }) {
 
             {/* Grand Total */}
             <View style={[styles.tableRow, { backgroundColor: '#e3f2fd' }]}>
-              <Text style={[styles.tdBold, { flex: 3.5 }]}>GRAND TOTAL</Text>
+              <Text style={[styles.tdBold, { flex: 3.4 }]}>GRAND TOTAL</Text>
               <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0).toFixed(0)}</Text>
               <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0).toFixed(0)}</Text>
               <Text style={[styles.tdBal, { flex: 0.7, fontSize: 14 }]}>{reportData.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0).toFixed(0)}</Text>
