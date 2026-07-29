@@ -117,13 +117,22 @@ const buildDispatchPdfHtml = (data, filters) => {
     const dQty  = g2(row, "DispQty") || 0;
     const oQty  = g2(row, "OriQty") || "";
     const rate  = g2(row, "Rate") || 0;
+    const srNo  = g2(row, "ord_sr_no") || "";
     const disc  = g2(row, "Disc") || 0;
     const amt   = g2(row, "Amt") || 0;
     if (!partyMap.has(pCode + pName)) partyMap.set(pCode + pName, { pName, dispatches: new Map() });
     const party = partyMap.get(pCode + pName);
     if (!party.dispatches.has(dKey)) party.dispatches.set(dKey, { dNo, dDate, lrNo, lrDt, trans, ordNo, items: [] });
     const disp = party.dispatches.get(dKey);
-    if (iCode || iName) disp.items.push({ iCode, iName, dQty, oQty, rate, disc, amt });
+    // Only add items that were actually dispatched (dQty > 0)
+    if ((iCode || iName) && parseFloat(dQty) > 0) disp.items.push({ srNo, iCode, iName, dQty, oQty, rate, disc, amt });
+  });
+
+  // Sort items within each dispatch by ord_sr_no ascending
+  partyMap.forEach(party => {
+    party.dispatches.forEach(disp => {
+      disp.items.sort((a, b) => (parseInt(a.srNo) || 0) - (parseInt(b.srNo) || 0));
+    });
   });
 
   let partyHtml = "";
@@ -140,7 +149,7 @@ const buildDispatchPdfHtml = (data, filters) => {
       const lrDtStr = disp.lrDt  ? (typeof disp.lrDt  === "string" ? disp.lrDt  : new Date(disp.lrDt).toLocaleDateString("en-GB"))  : "-";
       const itemRows = disp.items.map((it, ii) => `
         <tr style="background:${ii%2===0?'#f8faff':'#fff'}">
-          <td>${ii+1}</td>
+          <td style="text-align:center;font-weight:700">${it.srNo || (ii+1)}</td>
           <td><b>${it.iCode}</b><br/><small>${it.iName}</small></td>
           <td style="text-align:right">${parseFloat(it.dQty||0).toFixed(0)}</td>
           <td style="text-align:right">${it.oQty||''}</td>
@@ -260,10 +269,17 @@ function groupRows(rows) {
     }
     const dispatch = party.dispatchMap.get(dispKey);
 
-    // Add item
-    if (itemCode || itemName) {
+    // Add item — only if actually dispatched (dispQty > 0), sort later by sr
+    if ((itemCode || itemName) && parseFloat(dispQty) > 0) {
       dispatch.items.push({ sr, itemCode, itemName, dispQty, ordQty, rate, disc, amount });
     }
+  });
+
+  // Sort items by ord_sr_no ascending within each dispatch
+  partyMap.forEach(party => {
+    party.dispatchMap.forEach(disp => {
+      disp.items.sort((a, b) => (parseInt(a.sr) || 0) - (parseInt(b.sr) || 0));
+    });
   });
 
   // Convert maps to arrays, add sequential dispatch numbers per party
@@ -350,7 +366,7 @@ const ReportView = ({ data }) => {
                     {/* Items */}
                     {disp.items.map((item, ii) => (
                       <View key={ii} style={[styles.itemRow, ii % 2 === 1 && styles.itemRowAlt]}>
-                        <Text style={[styles.td, { width: 30 }]}>{ii + 1}</Text>
+                        <Text style={[styles.td, { width: 30 }]}>{item.sr || (ii + 1)}</Text>
                         <Text style={[styles.td, { width: 110 }]} numberOfLines={1}>{item.itemCode}</Text>
                         <Text style={[styles.td, { flex: 1 }]} numberOfLines={2}>{item.itemName}</Text>
                         <Text style={[styles.td, { width: 60, textAlign: "right" }]}>{parseFloat(item.dispQty || 0).toFixed(0)}</Text>
