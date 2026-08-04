@@ -98,109 +98,110 @@ const PartySearchList = ({ data, tempParties, onToggle }) => {
 };
 
 
-// ── PDF HTML template ──────────────────────────────────────────────────────────
+// ── PDF HTML template — Crystal Report format ──────────────────────────────────
 const buildPdfHtml = (data, filters) => {
   const now = new Date().toLocaleString("en-IN");
+  const fN = (v) => parseFloat(v || 0).toFixed(2);
 
-  // Build groups preserving server sort order
-  const groups = [];
-  const seen = {};
+  // Build party → order → rows structure
+  const partyMap = new Map();
   data.forEach(r => {
-    const key = r.VouchNo || r.OrderNo || '-';
-    if (!seen[key]) {
-      seen[key] = true;
-      groups.push({ key, rows: [] });
+    const pKey = (r.PartyCode || '') + '|' + (r.PartyName || '');
+    if (!partyMap.has(pKey)) partyMap.set(pKey, { partyName: r.PartyName || '', orders: new Map() });
+    const party = partyMap.get(pKey);
+    const oKey = String(r.OrderNo || r.VouchNo || '');
+    if (!party.orders.has(oKey)) {
+      party.orders.set(oKey, { vouchNo: r.VouchNo, orderDate: r.OrderDate || '', transport: r.Transport || '', rows: [] });
     }
-    groups[groups.length - 1].rows.push(r);
+    party.orders.get(oKey).rows.push(r);
   });
 
-  const colHeaders = `
-    <tr class="col-header">
-      <th>Sr</th><th>Item</th>
-      <th style="text-align:center">Ord Qty</th>
-      <th style="text-align:center">Disp Qty</th>
-      <th style="text-align:center">Bal Qty</th>
-    </tr>`;
+  let partyHtml = '';
+  partyMap.forEach(party => {
+    let partyOrd = 0, partyDisp = 0, partySetoff = 0, partyBal = 0, partyAmt = 0;
+    let ordersHtml = '';
+    party.orders.forEach(order => {
+      const subOrd     = order.rows.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0);
+      const subDisp    = order.rows.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0);
+      const subSetoff  = order.rows.reduce((s, r) => s + (parseFloat(r.SetoffQty)   || 0), 0);
+      const subBal     = order.rows.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0);
+      const subAmt     = order.rows.reduce((s, r) => s + (parseFloat(r.Amount)      || 0), 0);
+      partyOrd += subOrd; partyDisp += subDisp; partySetoff += subSetoff; partyBal += subBal; partyAmt += subAmt;
 
-  const groupedRows = groups.map(group => {
-    const firstRow = group.rows[0];
-    const subOrd  = group.rows.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0);
-    const subDisp = group.rows.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0);
-    const subBal  = group.rows.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0);
+      const itemRows = order.rows.map((r, ii) => `
+        <tr style="background:${ii%2===0?'#f8faff':'#fff'}">
+          <td style="text-align:center;font-weight:700">${r.SrNo || (ii+1)}</td>
+          <td><b>${r.ItemCode||''}</b></td>
+          <td>${r.ProductName||''}</td>
+          <td style="text-align:center">${r.Unit||'PC'}</td>
+          <td style="text-align:right">${parseFloat(r.OrderQty||0).toFixed(0)}</td>
+          <td style="text-align:right">${parseFloat(r.DispatchQty||0).toFixed(0)}</td>
+          <td style="text-align:right">${parseFloat(r.SetoffQty||0).toFixed(0)}</td>
+          <td style="text-align:right;font-weight:700;color:#cc0000">${parseFloat(r.BalQty||0).toFixed(0)}</td>
+          <td style="text-align:right">${fN(r.Disc)}</td>
+          <td style="text-align:right">${fN(r.Rate)}</td>
+          <td style="text-align:right;font-weight:700">${fN(r.Amount)}</td>
+        </tr>`).join('');
 
-    const dataRows = group.rows.map((r, i) => `
-      <tr style="background:${i % 2 === 0 ? '#f8faff' : '#fff'}">
-        <td style="text-align:center;font-weight:700">${r.SrNo ?? (i + 1)}</td>
-        <td>${r.ItemCode ? `<b>${r.ItemCode}</b><br/><small>${r.ProductName || ''}</small>` : '-'}</td>
-        <td style="text-align:center">${r.OrderQty ?? r.TotalQty ?? '-'}</td>
-        <td style="text-align:center">${r.DispatchQty ?? r.DesptchQty ?? 0}</td>
-        <td style="text-align:center;color:#d32f2f;font-weight:700">${r.BalQty ?? '-'}</td>
-      </tr>`).join('');
+      ordersHtml += `
+        <tr class="order-header">
+          <td colspan="11">
+            <b>Order No:- ${order.vouchNo}</b> &nbsp;&nbsp; Date:- ${order.orderDate}
+            ${order.transport ? `&nbsp;&nbsp; Transport:- ${order.transport}` : ''}
+          </td>
+        </tr>
+        <tr class="col-header">
+          <th>Sr</th><th>Item Code</th><th>Item Name</th><th style="text-align:center">Unit</th>
+          <th style="text-align:right">O. Qty</th><th style="text-align:right">D.Qty</th>
+          <th style="text-align:right">Setoff</th><th style="text-align:right">Bal Qty</th>
+          <th style="text-align:right">Disc.</th><th style="text-align:right">Rate</th>
+          <th style="text-align:right">Amount</th>
+        </tr>
+        ${itemRows}
+        <tr class="order-total">
+          <td colspan="4" style="text-align:right;font-weight:700;color:#cc0000;padding-right:8px">Order Wise Total</td>
+          <td style="text-align:right;font-weight:700;color:#cc0000">${subOrd.toFixed(0)}</td>
+          <td style="text-align:right;font-weight:700;color:#cc0000">${subDisp.toFixed(0)}</td>
+          <td style="text-align:right;font-weight:700;color:#cc0000">${subSetoff.toFixed(0)}</td>
+          <td style="text-align:right;font-weight:700;color:#cc0000">${subBal.toFixed(0)}</td>
+          <td></td><td></td>
+          <td style="text-align:right;font-weight:700;color:#cc0000">${fN(subAmt)}</td>
+        </tr>`;
+    });
 
-    return `
-      <tr class="group-header">
-        <td colspan="6">#${firstRow.VouchNo || firstRow.OrderNo} &nbsp;•&nbsp; ${firstRow.PartyName || firstRow.CustomerName || ''} &nbsp;•&nbsp; ${firstRow.OrderDate || firstRow.trans_dt || ''}</td>
-      </tr>
-      ${colHeaders}
-      ${dataRows}
-      <tr class="subtotal-row">
-        <td colspan="2" style="text-align:right;padding-right:12px;color:#0056b3;font-weight:700">Subtotal</td>
-        <td style="text-align:center;color:#0056b3;font-weight:700">${subOrd.toFixed(0)}</td>
-        <td style="text-align:center;color:#0056b3;font-weight:700">${subDisp.toFixed(0)}</td>
-        <td style="text-align:center;color:#d32f2f;font-weight:700">${subBal.toFixed(0)}</td>
+    partyHtml += `
+      <tr class="party-header"><td colspan="11">Party Name:&nbsp;&nbsp;&nbsp;${party.partyName}</td></tr>
+      ${ordersHtml}
+      <tr class="party-total">
+        <td colspan="4" style="font-weight:700">Party Wise Total</td>
+        <td style="text-align:right;font-weight:800">${partyOrd.toFixed(0)}</td>
+        <td style="text-align:right;font-weight:800">${partyDisp.toFixed(0)}</td>
+        <td style="text-align:right;font-weight:800">${partySetoff.toFixed(0)}</td>
+        <td style="text-align:right;font-weight:800">${partyBal.toFixed(0)}</td>
+        <td></td><td></td>
+        <td style="text-align:right;font-weight:800">${fN(partyAmt)}</td>
       </tr>`;
-  }).join('');
+  });
 
-  const grandOrd  = data.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0);
-  const grandDisp = data.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0);
-  const grandBal  = data.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0);
-
-  return `<!DOCTYPE html><html><head>
-  <meta charset="UTF-8"/>
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"/>
   <style>
-    body{font-family:Arial,sans-serif;margin:0;padding:20px;color:#1a237e;}
-    .header{background:linear-gradient(135deg,#0056b3,#1976d2);color:#fff;padding:20px 24px;border-radius:10px;margin-bottom:20px;}
-    .header h1{margin:0;font-size:22px;letter-spacing:1px;}
-    .header p{margin:4px 0 0;font-size:13px;opacity:.85;}
-    .meta{display:flex;gap:16px;margin-bottom:16px;flex-wrap:wrap;}
-    .meta-box{background:#e3f2fd;border-radius:8px;padding:10px 16px;font-size:12px;}
-    .meta-box b{display:block;color:#0056b3;font-size:14px;margin-top:2px;}
-    table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:0;}
-    th{background:#0056b3;color:#fff;padding:8px 6px;text-align:left;font-size:11px;letter-spacing:.5px;}
-    td{padding:7px 6px;border-bottom:1px solid #e8eaf6;vertical-align:top;}
-    .group-header td{background:#0056b3;color:#fff;font-weight:700;font-size:12px;padding:8px 10px;letter-spacing:.3px;border-top:4px solid #fff;}
-    .col-header th{background:#1565c0;}
-    .subtotal-row td{background:#e8f4fd;border-top:1.5px solid #90caf9;font-size:12px;}
-    .total-row{background:#e3f2fd!important;font-weight:700;}
-    .footer{margin-top:18px;text-align:right;font-size:12px;color:#555;}
-    .badge{display:inline-block;background:#0056b3;color:#fff;border-radius:20px;padding:2px 12px;font-size:11px;}
+    body{font-family:Arial,sans-serif;margin:0;padding:20px;color:#1a237e;font-size:11px;}
+    .hdr{background:linear-gradient(135deg,#0056b3,#1976d2);color:#fff;padding:14px 20px;border-radius:8px;margin-bottom:16px;}
+    .hdr h1{margin:0;font-size:18px;} .hdr p{margin:3px 0 0;font-size:11px;opacity:.85;}
+    table{width:100%;border-collapse:collapse;margin-bottom:0;}
+    td,th{padding:4px 6px;border-bottom:1px solid #e8eaf6;vertical-align:top;}
+    .party-header td{background:#1565C0;color:#fff;font-weight:700;font-size:12px;padding:6px 10px;}
+    .order-header td{background:#FFF9C4;color:#1a1a00;font-weight:700;font-size:11px;padding:4px 10px;border-bottom:1px solid #f0e000;}
+    .col-header th{background:#e8f0fe;color:#0056b3;font-weight:700;font-size:10px;padding:4px 6px;}
+    .order-total td{background:#FFF9C4;border-top:1.5px solid #e0cc00;}
+    .party-total td{background:#e8f0fe;border-top:2px solid #0056b3;color:#0056b3;font-size:11px;}
   </style></head><body>
-  <div class="header">
-    <h1>📋 Pending Order Report</h1>
-    <p>Generated on ${now}</p>
+  <div class="hdr"><h1>📋 Pending Order Report</h1>
+    <p>Period: ${filters.fromDate} → ${filters.toDate} &nbsp;|&nbsp; Generated: ${now}</p>
   </div>
-  <div class="meta">
-    <div class="meta-box">Period<b>${filters.fromDate} → ${filters.toDate}</b></div>
-    <div class="meta-box">Party<b>${filters.partyName || 'All Parties'}</b></div>
-    <div class="meta-box">Order No.<b>${filters.orderLabel || 'All'}</b></div>
-    <div class="meta-box">Product<b>${filters.productName || 'All Products'}</b></div>
-    <div class="meta-box">Records<b><span class="badge">${data.length}</span></b></div>
-  </div>
-  <table>
-    <tbody>
-      ${groupedRows}
-      <tr class="total-row">
-        <td colspan="2" style="text-align:right;padding-right:12px">GRAND TOTAL</td>
-        <td style="text-align:center">${grandOrd.toFixed(0)}</td>
-        <td style="text-align:center">${grandDisp.toFixed(0)}</td>
-        <td style="text-align:center;color:#d32f2f">${grandBal.toFixed(0)}</td>
-      </tr>
-    </tbody>
-  </table>
-  <div class="footer">Pending Order Report • ${now}</div>
+  <table><tbody>${partyHtml}</tbody></table>
 </body></html>`;
 };
-
 
 export default function PendingReportScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
@@ -501,92 +502,140 @@ export default function PendingReportScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Results */}
-        {reportData && (
-          <View style={styles.resultsCard}>
-            <View style={styles.resultsHeader}>
-              <View>
-                <Text style={styles.resultsTitle}>Results</Text>
-                <Text style={styles.resultsCount}>{reportData.length} record(s) found</Text>
-              </View>
-              <TouchableOpacity style={styles.pdfBtn} onPress={handleDownloadPdf} disabled={pdfLoading}>
-                {pdfLoading
-                  ? <ActivityIndicator size="small" color="#fff" />
-                  : <><Text style={styles.pdfBtnText}>📄 PDF</Text></>}
-              </TouchableOpacity>
+        {/* Results — Crystal Report format */}
+        {reportData && (() => {
+          // Group: party → order → rows
+          const partyMap = new Map();
+          reportData.forEach(r => {
+            const pKey = (r.PartyCode || '') + '|' + (r.PartyName || '');
+            if (!partyMap.has(pKey)) partyMap.set(pKey, { partyName: r.PartyName || '', orders: new Map() });
+            const party = partyMap.get(pKey);
+            const oKey = String(r.OrderNo || r.VouchNo || '');
+            if (!party.orders.has(oKey)) {
+              party.orders.set(oKey, { vouchNo: r.VouchNo, orderDate: r.OrderDate || '', transport: r.Transport || '', rows: [] });
+            }
+            party.orders.get(oKey).rows.push(r);
+          });
+
+          const ColHeader = () => (
+            <View style={styles.prColHeader}>
+              <Text style={[styles.prTh, { width: 28 }]}>Sr</Text>
+              <Text style={[styles.prTh, { width: 82 }]}>Item Code</Text>
+              <Text style={[styles.prTh, { flex: 1 }]}>Item Name</Text>
+              <Text style={[styles.prTh, { width: 30, textAlign: 'center' }]}>Unit</Text>
+              <Text style={[styles.prTh, { width: 40, textAlign: 'right' }]}>O.Qty</Text>
+              <Text style={[styles.prTh, { width: 40, textAlign: 'right' }]}>D.Qty</Text>
+              <Text style={[styles.prTh, { width: 40, textAlign: 'right' }]}>Setoff</Text>
+              <Text style={[styles.prTh, { width: 44, textAlign: 'right' }]}>Bal Qty</Text>
+              <Text style={[styles.prTh, { width: 48, textAlign: 'right' }]}>Disc.</Text>
+              <Text style={[styles.prTh, { width: 56, textAlign: 'right' }]}>Rate</Text>
+              <Text style={[styles.prTh, { width: 66, textAlign: 'right' }]}>Amount</Text>
             </View>
+          );
 
-            {/* Group rows by VouchNo — header + rows + subtotal per order */}
-            {(() => {
-              // Build ordered groups preserving server sort order
-              const groups = [];
-              const seen = {};
-              reportData.forEach(r => {
-                const key = r.VouchNo || r.OrderNo || r.OrderNo;
-                if (!seen[key]) {
-                  seen[key] = true;
-                  groups.push({ key, rows: [] });
-                }
-                groups[groups.length - 1].rows.push(r);
-              });
+          const parties = [];
+          partyMap.forEach((p, k) => parties.push({ key: k, ...p }));
 
-              const TableHeader = () => (
-                <View style={styles.tableHeader}>
-                  <Text style={[styles.th, { width: 36 }]}>Sr</Text>
-                  <Text style={[styles.th, { flex: 2 }]}>Item</Text>
-                  <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Ord</Text>
-                  <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Disp</Text>
-                  <Text style={[styles.th, { flex: 0.7, textAlign: 'center' }]}>Bal</Text>
+          return (
+            <View style={styles.resultsCard}>
+              {/* Results header bar */}
+              <View style={styles.resultsHeader}>
+                <View>
+                  <Text style={styles.resultsTitle}>Results</Text>
+                  <Text style={styles.resultsCount}>{reportData.length} record(s) found</Text>
                 </View>
-              );
+                <TouchableOpacity style={styles.pdfBtn} onPress={handleDownloadPdf} disabled={pdfLoading}>
+                  {pdfLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.pdfBtnText}>📄 PDF</Text>}
+                </TouchableOpacity>
+              </View>
 
-              return groups.map((group, gIdx) => {
-                const subOrd  = group.rows.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0);
-                const subDisp = group.rows.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0);
-                const subBal  = group.rows.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0);
-                const firstRow = group.rows[0];
-                return (
-                  <View key={group.key}>
-                    {/* Header for this order group */}
-                    <View style={styles.orderGroupHeader}>
-                      <Text style={styles.orderGroupTitle}>
-                        {`#${firstRow.VouchNo || firstRow.OrderNo}  •  ${firstRow.PartyName || firstRow.CustomerName || ''}  •  ${firstRow.OrderDate || firstRow.trans_dt || ''}`}
-                      </Text>
-                    </View>
-                    <TableHeader />
-                    {group.rows.map((r, i) => (
-                      <View key={i} style={[styles.tableRow, i % 2 === 0 && { backgroundColor: '#f8faff' }]}>
-                        <Text style={[styles.tdBold, { width: 36, textAlign: 'center', color: '#0056b3' }]}>{r.SrNo ?? (i + 1)}</Text>
-                        <View style={{ flex: 2 }}>
-                          <Text style={styles.tdBold} numberOfLines={1}>{r.ItemCode || '-'}</Text>
-                          <Text style={styles.tdSub} numberOfLines={2}>{r.ProductName}</Text>
+              <ScrollView horizontal>
+                <View style={{ minWidth: 750 }}>
+                  {parties.map((party, pi) => {
+                    const orders = [];
+                    party.orders.forEach((o, k) => orders.push({ key: k, ...o }));
+
+                    const partyOrd    = orders.reduce((s, o) => s + o.rows.reduce((ss, r) => ss + (parseFloat(r.OrderQty)    || 0), 0), 0);
+                    const partyDisp   = orders.reduce((s, o) => s + o.rows.reduce((ss, r) => ss + (parseFloat(r.DispatchQty) || 0), 0), 0);
+                    const partySetoff = orders.reduce((s, o) => s + o.rows.reduce((ss, r) => ss + (parseFloat(r.SetoffQty)   || 0), 0), 0);
+                    const partyBal    = orders.reduce((s, o) => s + o.rows.reduce((ss, r) => ss + (parseFloat(r.BalQty)      || 0), 0), 0);
+                    const partyAmt    = orders.reduce((s, o) => s + o.rows.reduce((ss, r) => ss + (parseFloat(r.Amount)      || 0), 0), 0);
+
+                    return (
+                      <View key={pi} style={styles.prPartyBlock}>
+                        {/* Party header */}
+                        <View style={styles.prPartyHeader}>
+                          <Text style={styles.prPartyHeaderText}>Party Name:   {party.partyName}</Text>
                         </View>
-                        <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.OrderQty ?? '-'}</Text>
-                        <Text style={[styles.td, { flex: 0.7, textAlign: 'center' }]}>{r.DispatchQty ?? 0}</Text>
-                        <Text style={[styles.tdBal, { flex: 0.7 }]}>{r.BalQty ?? '-'}</Text>
-                      </View>
-                    ))}
-                    {/* Subtotal for this order */}
-                    <View style={styles.subtotalRow}>
-                      <Text style={[styles.tdBold, { flex: 3.5, color: '#0056b3' }]}>Subtotal</Text>
-                      <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700', color: '#0056b3' }]}>{subOrd.toFixed(0)}</Text>
-                      <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700', color: '#0056b3' }]}>{subDisp.toFixed(0)}</Text>
-                      <Text style={[styles.tdBal, { flex: 0.7, color: '#c62828', fontSize: 13 }]}>{subBal.toFixed(0)}</Text>
-                    </View>
-                  </View>
-                );
-              });
-            })()}
 
-            {/* Grand Total */}
-            <View style={[styles.tableRow, { backgroundColor: '#e3f2fd' }]}>
-              <Text style={[styles.tdBold, { flex: 3.4 }]}>GRAND TOTAL</Text>
-              <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0).toFixed(0)}</Text>
-              <Text style={[styles.td, { flex: 0.7, textAlign: 'center', fontWeight: '700' }]}>{reportData.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0).toFixed(0)}</Text>
-              <Text style={[styles.tdBal, { flex: 0.7, fontSize: 14 }]}>{reportData.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0).toFixed(0)}</Text>
+                        {orders.map((order, oi) => {
+                          const subOrd    = order.rows.reduce((s, r) => s + (parseFloat(r.OrderQty)    || 0), 0);
+                          const subDisp   = order.rows.reduce((s, r) => s + (parseFloat(r.DispatchQty) || 0), 0);
+                          const subSetoff = order.rows.reduce((s, r) => s + (parseFloat(r.SetoffQty)   || 0), 0);
+                          const subBal    = order.rows.reduce((s, r) => s + (parseFloat(r.BalQty)      || 0), 0);
+                          const subAmt    = order.rows.reduce((s, r) => s + (parseFloat(r.Amount)      || 0), 0);
+
+                          return (
+                            <View key={oi}>
+                              {/* Order header (yellow) */}
+                              <View style={styles.prOrderHeader}>
+                                <Text style={styles.prOrderHeaderText}>
+                                  {'Order No. ' + order.vouchNo + '     Date :- ' + order.orderDate +
+                                    (order.transport ? '     Transport :- ' + order.transport : '')}
+                                </Text>
+                              </View>
+                              <ColHeader />
+                              {order.rows.map((r, ii) => (
+                                <View key={ii} style={[styles.prItemRow, ii % 2 === 1 && styles.prItemRowAlt]}>
+                                  <Text style={[styles.prTd, { width: 28, textAlign: 'center', fontWeight: '700' }]}>{r.SrNo || (ii + 1)}</Text>
+                                  <Text style={[styles.prTd, { width: 82 }]} numberOfLines={1}>{r.ItemCode}</Text>
+                                  <Text style={[styles.prTd, { flex: 1 }]} numberOfLines={2}>{r.ProductName}</Text>
+                                  <Text style={[styles.prTd, { width: 30, textAlign: 'center' }]}>{r.Unit || 'PC'}</Text>
+                                  <Text style={[styles.prTd, { width: 40, textAlign: 'right' }]}>{parseFloat(r.OrderQty    || 0).toFixed(0)}</Text>
+                                  <Text style={[styles.prTd, { width: 40, textAlign: 'right' }]}>{parseFloat(r.DispatchQty || 0).toFixed(0)}</Text>
+                                  <Text style={[styles.prTd, { width: 40, textAlign: 'right' }]}>{parseFloat(r.SetoffQty   || 0).toFixed(0)}</Text>
+                                  <Text style={[styles.prTd, { width: 44, textAlign: 'right', color: '#cc0000', fontWeight: '700' }]}>{parseFloat(r.BalQty || 0).toFixed(0)}</Text>
+                                  <Text style={[styles.prTd, { width: 48, textAlign: 'right' }]}>{parseFloat(r.Disc   || 0).toFixed(2)}</Text>
+                                  <Text style={[styles.prTd, { width: 56, textAlign: 'right' }]}>{parseFloat(r.Rate   || 0).toFixed(2)}</Text>
+                                  <Text style={[styles.prTd, { width: 66, textAlign: 'right', fontWeight: '600' }]}>{parseFloat(r.Amount || 0).toFixed(2)}</Text>
+                                </View>
+                              ))}
+                              {/* Order Wise Total */}
+                              <View style={styles.prOrderTotal}>
+                                <Text style={[styles.prTotalLabel, { flex: 1 }]}>Order Wise Total</Text>
+                                <Text style={[styles.prTotalNum, { width: 30 }]}></Text>
+                                <Text style={[styles.prTotalNum, { width: 40 }]}>{subOrd.toFixed(0)}</Text>
+                                <Text style={[styles.prTotalNum, { width: 40 }]}>{subDisp.toFixed(0)}</Text>
+                                <Text style={[styles.prTotalNum, { width: 40 }]}>{subSetoff.toFixed(0)}</Text>
+                                <Text style={[styles.prTotalNum, { width: 44 }]}>{subBal.toFixed(0)}</Text>
+                                <Text style={[styles.prTotalNum, { width: 48 }]}></Text>
+                                <Text style={[styles.prTotalNum, { width: 56 }]}></Text>
+                                <Text style={[styles.prTotalNum, { width: 66 }]}>{subAmt.toFixed(2)}</Text>
+                              </View>
+                            </View>
+                          );
+                        })}
+
+                        {/* Party Wise Total */}
+                        <View style={styles.prPartyTotal}>
+                          <Text style={[styles.prPartyTotalLabel, { flex: 1 }]}>Party Wise Total</Text>
+                          <Text style={[styles.prPartyTotalNum, { width: 30 }]}></Text>
+                          <Text style={[styles.prPartyTotalNum, { width: 40 }]}>{partyOrd.toFixed(0)}</Text>
+                          <Text style={[styles.prPartyTotalNum, { width: 40 }]}>{partyDisp.toFixed(0)}</Text>
+                          <Text style={[styles.prPartyTotalNum, { width: 40 }]}>{partySetoff.toFixed(0)}</Text>
+                          <Text style={[styles.prPartyTotalNum, { width: 44 }]}>{partyBal.toFixed(0)}</Text>
+                          <Text style={[styles.prPartyTotalNum, { width: 48 }]}></Text>
+                          <Text style={[styles.prPartyTotalNum, { width: 56 }]}></Text>
+                          <Text style={[styles.prPartyTotalNum, { width: 66 }]}>{partyAmt.toFixed(2)}</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
             </View>
-          </View>
-        )}
+          );
+        })()}
       </ScrollView>
 
       {/* Party multi-select modal */}
@@ -733,5 +782,23 @@ const styles = StyleSheet.create({
   orderGroupTitle: { color: '#fff', fontSize: 11, fontWeight: '700', letterSpacing: 0.4 },
   // Subtotal row per order
   subtotalRow: { flexDirection: 'row', paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#e8f4fd', borderTopWidth: 1.5, borderTopColor: '#90caf9', marginBottom: 2 },
+
+  // ── Crystal Report styles ──────────────────────────────────────────────────────
+  prPartyBlock: { marginBottom: 6 },
+  prPartyHeader: { backgroundColor: '#1565C0', paddingVertical: 7, paddingHorizontal: 10 },
+  prPartyHeaderText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  prOrderHeader: { backgroundColor: '#FFF9C4', paddingHorizontal: 10, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#f0e000' },
+  prOrderHeaderText: { fontSize: 11, color: '#1a1a00', fontWeight: '600' },
+  prColHeader: { flexDirection: 'row', backgroundColor: '#e8f0fe', paddingVertical: 5, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: '#bcd0f5' },
+  prTh: { fontSize: 10, fontWeight: '700', color: '#0056b3' },
+  prItemRow: { flexDirection: 'row', paddingVertical: 5, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', alignItems: 'flex-start' },
+  prItemRowAlt: { backgroundColor: '#f9fafe' },
+  prTd: { fontSize: 10, color: '#334155' },
+  prOrderTotal: { flexDirection: 'row', paddingVertical: 5, paddingHorizontal: 6, backgroundColor: '#FFF9C4', borderTopWidth: 1, borderTopColor: '#e0cc00' },
+  prTotalLabel: { fontSize: 10, fontWeight: '700', color: '#cc0000', textAlign: 'right', paddingRight: 6 },
+  prTotalNum: { fontSize: 10, fontWeight: '700', color: '#cc0000', textAlign: 'right' },
+  prPartyTotal: { flexDirection: 'row', paddingVertical: 7, paddingHorizontal: 6, backgroundColor: '#e8f0fe', borderTopWidth: 2, borderTopColor: '#0056b3', marginTop: 2, marginBottom: 8 },
+  prPartyTotalLabel: { fontSize: 11, fontWeight: '700', color: '#0056b3', paddingRight: 6 },
+  prPartyTotalNum: { fontSize: 11, fontWeight: '800', color: '#0056b3', textAlign: 'right' },
 });
 
