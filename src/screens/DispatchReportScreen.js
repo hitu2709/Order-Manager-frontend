@@ -96,11 +96,11 @@ const MultiBtn = ({ selected, renderLabel, onPress }) => {
 // ─── PDF HTML Builder ────────────────────────────────────────────────────────
 const buildDispatchPdfHtml = (data, filters) => {
   const now = new Date().toLocaleString("en-IN");
-  const f2 = (v) => parseFloat(v || 0).toFixed(2);
   const fN = (v) => parseFloat(v || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 });
 
-  // Group the flat rows same as groupRows()
   const g2 = (row, ...keys) => { for (const k of keys) { if (row[k] !== undefined && row[k] !== null) return row[k]; } return null; };
+
+  // ── Group rows: party → dispatch → items (same logic as groupRows()) ────────
   const partyMap = new Map();
   data.forEach(row => {
     const pCode = g2(row, "ac_code") || "";
@@ -112,41 +112,68 @@ const buildDispatchPdfHtml = (data, filters) => {
     const lrDt  = g2(row, "LRDate") || "";
     const trans = g2(row, "Transport") || "-";
     const ordNo = g2(row, "ord_no") || "";
+    // Packing charge fields (injected by backend from dbo.challan)
+    const pcs     = parseFloat(g2(row, "_pcs")     || 0);
+    const sqrMtr  = parseFloat(g2(row, "_sqrMtr")  || 0);
+    const grsWgt  = parseFloat(g2(row, "_grsWgt")  || 0);
+    const pcs1    = parseFloat(g2(row, "_pcs1")    || 0);
+    const sqrMtr1 = parseFloat(g2(row, "_sqrMtr1") || 0);
+    const grsWgt1 = parseFloat(g2(row, "_grsWgt1") || 0);
+    // Item fields
+    const srNo  = g2(row, "ord_sr_no") || "";
     const iCode = g2(row, "Prod_code") || "";
     const iName = g2(row, "ProdName") || "";
     const dQty  = g2(row, "DispQty") || 0;
-    const oQty  = g2(row, "OriQty") || "";
     const rate  = g2(row, "Rate") || 0;
-    const srNo  = g2(row, "ord_sr_no") || "";
     const disc  = g2(row, "Disc") || 0;
     const amt   = g2(row, "Amt") || 0;
+
     if (!partyMap.has(pCode + pName)) partyMap.set(pCode + pName, { pName, dispatches: new Map() });
     const party = partyMap.get(pCode + pName);
-    if (!party.dispatches.has(dKey)) party.dispatches.set(dKey, { dNo, dDate, lrNo, lrDt, trans, ordNo, items: [] });
+    if (!party.dispatches.has(dKey)) {
+      party.dispatches.set(dKey, {
+        dNo, dDate, lrNo, lrDt, trans, ordNo,
+        pcs, sqrMtr, grsWgt, pcs1, sqrMtr1, grsWgt1,
+        items: []
+      });
+    }
     const disp = party.dispatches.get(dKey);
-    // Only add items that were actually dispatched (dQty > 0)
-    if ((iCode || iName) && parseFloat(dQty) > 0) disp.items.push({ srNo, iCode, iName, dQty, oQty, rate, disc, amt });
+    if ((iCode || iName) && parseFloat(dQty) > 0) disp.items.push({ srNo, iCode, iName, dQty, rate, disc, amt });
   });
 
-  // Sort items within each dispatch by ord_sr_no ascending
-  partyMap.forEach(party => {
-    party.dispatches.forEach(disp => {
-      disp.items.sort((a, b) => (parseInt(a.srNo) || 0) - (parseInt(b.srNo) || 0));
-    });
-  });
+  // Sort items by sr ascending
+  partyMap.forEach(party => party.dispatches.forEach(disp =>
+    disp.items.sort((a, b) => (parseInt(a.srNo) || 0) - (parseInt(b.srNo) || 0))
+  ));
 
+  // ── Build HTML ──────────────────────────────────────────────────────────────
   let partyHtml = "";
   let dispCounter = 1;
+
   partyMap.forEach(party => {
     let partyQty = 0, partyAmt = 0, partyDisc = 0;
     let dispHtml = "";
+
     party.dispatches.forEach(disp => {
-      const subQty = disp.items.reduce((s, it) => s + parseFloat(it.dQty || 0), 0);
-      const subAmt = disp.items.reduce((s, it) => s + parseFloat(it.amt || 0), 0);
+      const subQty  = disp.items.reduce((s, it) => s + parseFloat(it.dQty || 0), 0);
+      const subAmt  = disp.items.reduce((s, it) => s + parseFloat(it.amt  || 0), 0);
       const subDisc = disp.items.reduce((s, it) => s + parseFloat(it.disc || 0), 0);
-      partyQty += subQty; partyAmt += subAmt; partyDisc += subDisc;
-      const dateStr = disp.dDate ? (typeof disp.dDate === "string" ? disp.dDate : new Date(disp.dDate).toLocaleDateString("en-GB")) : "-";
-      const lrDtStr = disp.lrDt  ? (typeof disp.lrDt  === "string" ? disp.lrDt  : new Date(disp.lrDt).toLocaleDateString("en-GB"))  : "-";
+      const totalAmt = subAmt + (disp.grsWgt || 0) + (disp.grsWgt1 || 0); // items + packing
+      partyQty += subQty; partyAmt += totalAmt; partyDisc += subDisc;
+
+      const dateStr  = disp.dDate ? (typeof disp.dDate === "string" ? disp.dDate : new Date(disp.dDate).toLocaleDateString("en-GB")) : "-";
+      const lrDtStr  = disp.lrDt  ? (typeof disp.lrDt  === "string" ? disp.lrDt  : new Date(disp.lrDt).toLocaleDateString("en-GB"))  : "-";
+
+      // Packing row — only if at least one pack has a value
+      const packHtml = (disp.grsWgt > 0 || disp.grsWgt1 > 0) ? `
+        <tr class="disp-sub">
+          <td colspan="6">
+            ${disp.grsWgt  > 0 ? `<b>Pack:</b> ${disp.pcs}*${disp.sqrMtr}=${disp.grsWgt}` : ""}
+            ${disp.grsWgt  > 0 && disp.grsWgt1 > 0 ? "&nbsp;&nbsp;&nbsp;" : ""}
+            ${disp.grsWgt1 > 0 ? `<b>Pack2:</b> ${disp.pcs1}*${disp.sqrMtr1}=${disp.grsWgt1}` : ""}
+          </td>
+        </tr>` : "";
+
       const itemRows = disp.items.map((it, ii) => `
         <tr style="background:${ii%2===0?'#f8faff':'#fff'}">
           <td style="text-align:center;font-weight:700">${it.srNo || (ii+1)}</td>
@@ -156,21 +183,24 @@ const buildDispatchPdfHtml = (data, filters) => {
           <td style="text-align:right">${fN(it.disc)}</td>
           <td style="text-align:right;font-weight:700">${fN(it.amt)}</td>
         </tr>`).join("");
+
       dispHtml += `
         <tr class="disp-header">
-          <td colspan="7">
-            <b>Dispatch No. ${dispCounter}</b> &nbsp;|&nbsp; Date: ${dateStr}
-            &nbsp;|&nbsp; Order No: ${disp.ordNo}
-            &nbsp;|&nbsp; Total: ${fN(subAmt)}
-          </td>
+          <td colspan="6"><b>Dispatch No. ${dispCounter}</b> &nbsp;&nbsp; Date :- ${dateStr}</td>
         </tr>
         <tr class="disp-sub">
-          <td colspan="7">LR No: ${disp.lrNo} &nbsp;|&nbsp; LR Date: ${lrDtStr} &nbsp;|&nbsp; Transport: ${disp.trans}</td>
+          <td colspan="6">LR No :- ${disp.lrNo} &nbsp;&nbsp; LR Date :- ${lrDtStr} &nbsp;&nbsp; Transport :- ${disp.trans}</td>
+        </tr>
+        ${packHtml}
+        <tr class="disp-sub" style="font-weight:700">
+          <td colspan="6">Order No. ${disp.ordNo} &nbsp;&nbsp;&nbsp; Total Amt. ${fN(totalAmt)}</td>
         </tr>
         <tr class="col-header">
-          <th>Sr</th><th>Item Code / Name</th><th style="text-align:right">Disp Qty</th>
+          <th>Sr</th><th>Item Code / Name</th>
+          <th style="text-align:right">Disp Qty</th>
           <th style="text-align:right">Rate</th>
-          <th style="text-align:right">Disc</th><th style="text-align:right">Amount</th>
+          <th style="text-align:right">Disc</th>
+          <th style="text-align:right">Amount</th>
         </tr>
         ${itemRows}
         <tr class="subtotal-row">
@@ -182,6 +212,7 @@ const buildDispatchPdfHtml = (data, filters) => {
         </tr>`;
       dispCounter++;
     });
+
     partyHtml += `
       <tr class="party-header"><td colspan="6">Party: ${party.pName}</td></tr>
       ${dispHtml}
@@ -204,10 +235,10 @@ const buildDispatchPdfHtml = (data, filters) => {
     .meta-box{background:#e3f2fd;border-radius:8px;padding:8px 14px;font-size:11px;}
     .meta-box b{display:block;color:#0056b3;font-size:13px;margin-top:2px;}
     table{width:100%;border-collapse:collapse;margin-bottom:0;}
-    td,th{padding:6px 8px;border-bottom:1px solid #e8eaf6;vertical-align:top;}
+    td,th{padding:5px 8px;border-bottom:1px solid #e8eaf6;vertical-align:top;}
     .party-header td{background:#1565c0;color:#fff;font-weight:700;font-size:13px;padding:8px 10px;border-top:4px solid #fff;}
-    .disp-header td{background:#FFF176;color:#1a1a00;font-size:11px;padding:6px 8px;border-bottom:1px solid #e0cc00;}
-    .disp-sub td{background:#FFFDE7;color:#555;font-size:10px;padding:4px 8px;border-bottom:1px solid #e0cc00;}
+    .disp-header td{background:#FFF176;color:#1a1a00;font-size:12px;font-weight:700;padding:5px 8px;border-bottom:1px solid #e0cc00;}
+    .disp-sub td{background:#FFFDE7;color:#333;font-size:11px;padding:4px 8px;border-bottom:1px solid #f0e000;}
     .col-header th{background:#0056b3;color:#fff;font-size:10px;letter-spacing:.4px;text-align:left;}
     .subtotal-row td{background:#FFF9C4;border-top:1.5px solid #e0cc00;}
     .party-total td{background:#e3f2fd;border-top:2px solid #0056b3;font-size:12px;}
@@ -223,6 +254,7 @@ const buildDispatchPdfHtml = (data, filters) => {
   <div class="footer">Dispatch Report • ${now}</div>
 </body></html>`;
 };
+
 
 function groupRows(rows) {
   const partyMap = new Map();
