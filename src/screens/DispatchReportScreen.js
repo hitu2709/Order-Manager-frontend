@@ -516,8 +516,8 @@ export default function DispatchReportScreen({ navigation }) {
         toDate:      toApiDate(toDate),
         // Party: send ac_code (first selected)
         partyIds:    selParties.length    > 0 ? selParties.map(p => p.PartyID).join(",")      : "All",
-        // Dispatch: send Ord_no string (VouchNo param) — not the numeric trans_no
-        dispatchNos: selDispatchNos.length > 0 ? selDispatchNos.map(d => d.Vouchno).join(",") : "All",
+        // Dispatch: send Trans_No (numeric) — SP converts VouchNo to int internally
+        dispatchNos: selDispatchNos.length > 0 ? selDispatchNos.map(d => String(d.Trans_No)).join(",") : "All",
         // Product: send prod_code
         productIds:  selProducts.length   > 0 ? selProducts.map(p => p.ItemCode).join(",")    : "All",
       };
