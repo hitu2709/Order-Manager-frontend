@@ -119,6 +119,7 @@ const buildDispatchPdfHtml = (data, filters) => {
     const pcs1    = parseFloat(g2(row, "_pcs1")    || 0);
     const sqrMtr1 = parseFloat(g2(row, "_sqrMtr1") || 0);
     const grsWgt1 = parseFloat(g2(row, "_grsWgt1") || 0);
+    const netWgt  = parseFloat(g2(row, "_netWgt")  || 0);  // Shop Amount
     // Item fields
     const srNo  = g2(row, "ord_sr_no") || "";
     const iCode = g2(row, "Prod_code") || "";
@@ -133,7 +134,7 @@ const buildDispatchPdfHtml = (data, filters) => {
     if (!party.dispatches.has(dKey)) {
       party.dispatches.set(dKey, {
         dNo, dDate, lrNo, lrDt, trans, ordNo,
-        pcs, sqrMtr, grsWgt, pcs1, sqrMtr1, grsWgt1,
+        pcs, sqrMtr, grsWgt, pcs1, sqrMtr1, grsWgt1, netWgt,
         items: []
       });
     }
@@ -158,19 +159,21 @@ const buildDispatchPdfHtml = (data, filters) => {
       const subQty  = disp.items.reduce((s, it) => s + parseFloat(it.dQty || 0), 0);
       const subAmt  = disp.items.reduce((s, it) => s + parseFloat(it.amt  || 0), 0);
       const subDisc = disp.items.reduce((s, it) => s + parseFloat(it.disc || 0), 0);
-      const totalAmt = subAmt + (disp.grsWgt || 0) + (disp.grsWgt1 || 0); // items + packing
+      const totalAmt = subAmt + (disp.grsWgt || 0) + (disp.grsWgt1 || 0) + (disp.netWgt || 0); // items + packing + shop amt
       partyQty += subQty; partyAmt += totalAmt; partyDisc += subDisc;
 
       const dateStr  = disp.dDate ? (typeof disp.dDate === "string" ? disp.dDate : new Date(disp.dDate).toLocaleDateString("en-GB")) : "-";
       const lrDtStr  = disp.lrDt  ? (typeof disp.lrDt  === "string" ? disp.lrDt  : new Date(disp.lrDt).toLocaleDateString("en-GB"))  : "-";
 
-      // Packing row — only if at least one pack has a value
-      const packHtml = (disp.grsWgt > 0 || disp.grsWgt1 > 0) ? `
+      // Packing row — show Pack, Pack2, and Shop Amt (each only when > 0)
+      const packHtml = (disp.grsWgt > 0 || disp.grsWgt1 > 0 || disp.netWgt > 0) ? `
         <tr class="disp-sub">
           <td colspan="6">
             ${disp.grsWgt  > 0 ? `<b>Pack:</b> ${disp.pcs}*${disp.sqrMtr}=${disp.grsWgt}` : ""}
             ${disp.grsWgt  > 0 && disp.grsWgt1 > 0 ? "&nbsp;&nbsp;&nbsp;" : ""}
             ${disp.grsWgt1 > 0 ? `<b>Pack2:</b> ${disp.pcs1}*${disp.sqrMtr1}=${disp.grsWgt1}` : ""}
+            ${(disp.grsWgt > 0 || disp.grsWgt1 > 0) && disp.netWgt > 0 ? "&nbsp;&nbsp;&nbsp;" : ""}
+            ${disp.netWgt  > 0 ? `<b>Shop Amt:</b> ${fN(disp.netWgt)}` : ""}
           </td>
         </tr>` : "";
 
@@ -280,6 +283,7 @@ function groupRows(rows) {
     const pcs1     = parseFloat(g(row, "_pcs1")    || 0);
     const sqrMtr1  = parseFloat(g(row, "_sqrMtr1") || 0);
     const grsWgt1  = parseFloat(g(row, "_grsWgt1") || 0);
+    const netWgt   = parseFloat(g(row, "_netWgt")  || 0);  // Shop Amount
 
     // Item fields — exact SP column names
     const sr       = g(row, "ord_sr_no") || "";
@@ -297,12 +301,12 @@ function groupRows(rows) {
     }
     const party = partyMap.get(partyCode + partyName);
 
-    // Build dispatch (totalAmt calculated from items sum + packing charge)
+    // Build dispatch (totalAmt calculated from items sum + packing charges + shop amount)
     if (!party.dispatchMap.has(dispKey)) {
       party.dispatchMap.set(dispKey, {
         dispKey, dispNo, dispDate, packChrg,
         lrNo, lrDate, transport, ordNo,
-        pcs, sqrMtr, grsWgt, pcs1, sqrMtr1, grsWgt1,
+        pcs, sqrMtr, grsWgt, pcs1, sqrMtr1, grsWgt1, netWgt,
         items: []
       });
     }
@@ -382,8 +386,8 @@ const ReportView = ({ data }) => {
                       <Text style={styles.dispHeaderText}>LR Date :- {lrDateStr}{"     "}</Text>
                       <Text style={styles.dispHeaderText}>Transport :- {disp.transport}</Text>
                     </View>
-                    {/* Dispatch Header row 3 — Packing Charge (below transport) */}
-                    {(disp.grsWgt > 0 || disp.grsWgt1 > 0) && (
+                    {/* Dispatch Header row 3 — Packing Charge + Shop Amount */}
+                    {(disp.grsWgt > 0 || disp.grsWgt1 > 0 || disp.netWgt > 0) && (
                       <View style={styles.dispHeader}>
                         {disp.grsWgt > 0 && (
                           <Text style={styles.dispHeaderText}>
@@ -392,15 +396,20 @@ const ReportView = ({ data }) => {
                         )}
                         {disp.grsWgt1 > 0 && (
                           <Text style={styles.dispHeaderText}>
-                            Pack2: {disp.pcs1}*{disp.sqrMtr1}={disp.grsWgt1}
+                            Pack2: {disp.pcs1}*{disp.sqrMtr1}={disp.grsWgt1}{"     "}
+                          </Text>
+                        )}
+                        {disp.netWgt > 0 && (
+                          <Text style={styles.dispHeaderText}>
+                            Shop Amt: {fmtN(disp.netWgt)}
                           </Text>
                         )}
                       </View>
                     )}
-                    {/* Dispatch Header row 4 — Order No + Total (items + packing) */}
+                    {/* Dispatch Header row 4 — Order No + Total (items + packing + shop amt) */}
                     <View style={styles.dispHeader}>
                       <Text style={styles.dispHeaderText}>Order No.  {disp.ordNo}{"     "}</Text>
-                      <Text style={styles.dispHeaderText}>Total Amt.  {fmtN(subAmt + (disp.grsWgt || 0) + (disp.grsWgt1 || 0))}</Text>
+                      <Text style={styles.dispHeaderText}>Total Amt.  {fmtN(subAmt + (disp.grsWgt || 0) + (disp.grsWgt1 || 0) + (disp.netWgt || 0))}</Text>
                     </View>
 
                     {/* Column Header */}
