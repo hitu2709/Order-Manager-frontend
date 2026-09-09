@@ -466,25 +466,23 @@ export default function CreateOrderScreen({ navigation, route }) {
       discountPercent: String(item.discountPercent || '0'),
       remark: item.remark || '',
     });
-    // In edit mode → read StkQty from dbo.ord_tran for this order+product
-    // In create mode → call the SP as usual
-    const code = item.itemCode;
-    if (code) {
-      setInlineStockQty(null);
-      setInlineStockLoading(true);
-      if (isEditMode && editOrder?.OrderID) {
-        fetchOrderItemStock(editOrder.OrderID, code)
-          .then(res => setInlineStockQty(res.success ? parseFloat(res.stock || 0) : 0))
-          .catch(() => setInlineStockQty(0))
-          .finally(() => setInlineStockLoading(false));
-      } else {
+    // In edit mode → stkQty is already loaded on the item from ord_tran, show instantly
+    // In create mode → call the SP to get live stock
+    if (isEditMode) {
+      setInlineStockQty(parseFloat(item.stkQty ?? 0));
+      setInlineStockLoading(false);
+    } else {
+      const code = item.itemCode;
+      if (code) {
+        setInlineStockQty(null);
+        setInlineStockLoading(true);
         fetchProductStock(code)
           .then(res => setInlineStockQty(res.success ? parseFloat(res.stock || 0) : 0))
           .catch(() => setInlineStockQty(0))
           .finally(() => setInlineStockLoading(false));
+      } else {
+        setInlineStockQty(null);
       }
-    } else {
-      setInlineStockQty(item.stkQty ?? null);
     }
   };
 
