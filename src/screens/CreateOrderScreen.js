@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { createOrder, updateOrder, fetchParties, fetchProducts, fetchSalesmen, fetchProductStock } from "../services/api";
+import { createOrder, updateOrder, fetchParties, fetchProducts, fetchSalesmen, fetchProductStock, fetchOrderItemStock } from "../services/api";
 
 import Icon from "../components/Icon";
 
@@ -466,15 +466,23 @@ export default function CreateOrderScreen({ navigation, route }) {
       discountPercent: String(item.discountPercent || '0'),
       remark: item.remark || '',
     });
-    // Fetch fresh stock for this product when the panel opens
+    // In edit mode → read StkQty from dbo.ord_tran for this order+product
+    // In create mode → call the SP as usual
     const code = item.itemCode;
     if (code) {
       setInlineStockQty(null);
       setInlineStockLoading(true);
-      fetchProductStock(code)
-        .then(res => setInlineStockQty(res.success ? parseFloat(res.stock || 0) : 0))
-        .catch(() => setInlineStockQty(0))
-        .finally(() => setInlineStockLoading(false));
+      if (isEditMode && editOrder?.OrderID) {
+        fetchOrderItemStock(editOrder.OrderID, code)
+          .then(res => setInlineStockQty(res.success ? parseFloat(res.stock || 0) : 0))
+          .catch(() => setInlineStockQty(0))
+          .finally(() => setInlineStockLoading(false));
+      } else {
+        fetchProductStock(code)
+          .then(res => setInlineStockQty(res.success ? parseFloat(res.stock || 0) : 0))
+          .catch(() => setInlineStockQty(0))
+          .finally(() => setInlineStockLoading(false));
+      }
     } else {
       setInlineStockQty(item.stkQty ?? null);
     }

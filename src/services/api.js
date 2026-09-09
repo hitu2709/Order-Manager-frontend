@@ -121,6 +121,12 @@ export const fetchProductStock = async (productCode) => {
   return response.data;
 };
 
+// Fetch StkQty from dbo.ord_tran for a specific order+product (used in EDIT mode)
+export const fetchOrderItemStock = async (orderId, productCode) => {
+  const response = await apiClient.get(`/api/orders/${orderId}/item-stock`, { params: { productCode } });
+  return response.data;
+};
+
 // Fetch dispatch report
 export const fetchDispatchReport = async (filters) => {
   const response = await apiClient.get('/api/reports/dispatch', { params: filters });
