@@ -115,7 +115,7 @@ export const deleteOrder = async (id) => {
   return response.data;
 };
 
-// Fetch current FY stock for a single product (uses GetProductStockSummary SP)
+// Fetch current FY stock for a single product (uses GetProductStockSummaryNew SP)
 export const fetchProductStock = async (productCode) => {
   const response = await apiClient.get('/api/orders/product-stock', { params: { productCode } });
   return response.data;
