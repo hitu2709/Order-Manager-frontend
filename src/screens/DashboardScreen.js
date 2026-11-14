@@ -145,8 +145,7 @@ export default function DashboardScreen({ navigation }) {
     })();
     const totalQty = (order.products || []).reduce((sum, p) => sum + (parseFloat(p.Quantity) || 0), 0);
     const orderDate = new Date(order.OrderDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
-    const transNo = String(order.OrderID).padStart(10, '0');
-    const vouchNo = order.VouchNo ? String(order.VouchNo) : '-';
+    const vouchNo = order.VouchNo ? String(order.VouchNo) : String(order.OrderID);
 
     const itemRows = (order.products || []).map((p, i) => {
       const discPct = parseFloat(p.Discount || 0);
@@ -216,12 +215,8 @@ export default function DashboardScreen({ navigation }) {
             <div style="font-size:13px;opacity:0.8;margin-top:4px">${order.CustomerName}</div>
           </div>
           <div class="order-badge">
-            <div class="label">Trans No.</div>
-            <div class="value">#${transNo}</div>
-            <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.25)">
-              <div class="label">Vouch No.</div>
-              <div class="value">${vouchNo}</div>
-            </div>
+            <div class="label">Order No.</div>
+            <div class="value">#${vouchNo}</div>
           </div>
         </div>
         <div class="header-divider"></div>
@@ -277,7 +272,7 @@ export default function DashboardScreen({ navigation }) {
       </div>
       <div class="footer">
         <div class="footer-note">This is a computer generated sale order.</div>
-        <div class="footer-note">Order #${orderNo} &bull; ${orderDate}</div>
+        <div class="footer-note">Order #${vouchNo} &bull; ${orderDate}</div>
       </div>
     </div>
     </body></html>`;
@@ -287,13 +282,12 @@ export default function DashboardScreen({ navigation }) {
   const generateOrderPDF = async (order) => {
     try {
       setPdfLoading(true);
-      const transNo = String(order.OrderID).padStart(10, '0');
-    const vouchNo = order.VouchNo ? String(order.VouchNo) : '-';
+      const vouchNo = order.VouchNo ? String(order.VouchNo) : String(order.OrderID);
       const html = buildOrderHTML(order);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
 
       // Copy to a named file in documentDirectory so filename is readable
-      const destPath = `${FileSystem.documentDirectory}Order_${orderNo}_${order.CustomerName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      const destPath = `${FileSystem.documentDirectory}Order_${vouchNo}_${order.CustomerName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
       await FileSystem.copyAsync({ from: uri, to: destPath });
 
       const canShare = await Sharing.isAvailableAsync();
@@ -301,11 +295,11 @@ export default function DashboardScreen({ navigation }) {
         // Opens Android share sheet → user can pick Save to Downloads / Files
         await Sharing.shareAsync(destPath, {
           mimeType: 'application/pdf',
-          dialogTitle: `Save Order #${orderNo}`,
+          dialogTitle: `Save Order #${vouchNo}`,
           UTI: 'com.adobe.pdf',
         });
       } else {
-        Alert.alert('PDF Saved', `Saved as: Order_${orderNo}.pdf`);
+        Alert.alert('PDF Saved', `Saved as: Order_${vouchNo}.pdf`);
       }
     } catch (err) {
       console.error('PDF Download Error:', err);
@@ -319,11 +313,10 @@ export default function DashboardScreen({ navigation }) {
   const handleWhatsAppPDF = async (order) => {
     try {
       setWaLoading(true);
-      const transNo = String(order.OrderID).padStart(10, '0');
-    const vouchNo = order.VouchNo ? String(order.VouchNo) : '-';
+      const vouchNo = order.VouchNo ? String(order.VouchNo) : String(order.OrderID);
       const html = buildOrderHTML(order);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
-      const destPath = `${FileSystem.documentDirectory}Order_${orderNo}_WA.pdf`;
+      const destPath = `${FileSystem.documentDirectory}Order_${vouchNo}_WA.pdf`;
       await FileSystem.copyAsync({ from: uri, to: destPath });
 
       // Get content URI for Android sharing intent (needed for WhatsApp)
@@ -336,7 +329,7 @@ export default function DashboardScreen({ navigation }) {
       if (canShare) {
         await Sharing.shareAsync(shareUri, {
           mimeType: 'application/pdf',
-          dialogTitle: `Share Order #${orderNo} via WhatsApp`,
+          dialogTitle: `Share Order #${vouchNo} via WhatsApp`,
           UTI: 'com.adobe.pdf',
         });
       } else {
