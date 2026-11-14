@@ -145,7 +145,8 @@ export default function DashboardScreen({ navigation }) {
     })();
     const totalQty = (order.products || []).reduce((sum, p) => sum + (parseFloat(p.Quantity) || 0), 0);
     const orderDate = new Date(order.OrderDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
-    const orderNo = String(order.OrderID).padStart(10, '0');
+    const transNo = String(order.OrderID).padStart(10, '0');
+    const vouchNo = order.VouchNo ? String(order.VouchNo) : '-';
 
     const itemRows = (order.products || []).map((p, i) => {
       const discPct = parseFloat(p.Discount || 0);
@@ -215,8 +216,12 @@ export default function DashboardScreen({ navigation }) {
             <div style="font-size:13px;opacity:0.8;margin-top:4px">${order.CustomerName}</div>
           </div>
           <div class="order-badge">
-            <div class="label">Order No.</div>
-            <div class="value">#${orderNo}</div>
+            <div class="label">Trans No.</div>
+            <div class="value">#${transNo}</div>
+            <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.25)">
+              <div class="label">Vouch No.</div>
+              <div class="value">${vouchNo}</div>
+            </div>
           </div>
         </div>
         <div class="header-divider"></div>
@@ -282,7 +287,8 @@ export default function DashboardScreen({ navigation }) {
   const generateOrderPDF = async (order) => {
     try {
       setPdfLoading(true);
-      const orderNo = String(order.OrderID).padStart(10, '0');
+      const transNo = String(order.OrderID).padStart(10, '0');
+    const vouchNo = order.VouchNo ? String(order.VouchNo) : '-';
       const html = buildOrderHTML(order);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
 
@@ -313,7 +319,8 @@ export default function DashboardScreen({ navigation }) {
   const handleWhatsAppPDF = async (order) => {
     try {
       setWaLoading(true);
-      const orderNo = String(order.OrderID).padStart(10, '0');
+      const transNo = String(order.OrderID).padStart(10, '0');
+    const vouchNo = order.VouchNo ? String(order.VouchNo) : '-';
       const html = buildOrderHTML(order);
       const { uri } = await Print.printToFileAsync({ html, base64: false });
       const destPath = `${FileSystem.documentDirectory}Order_${orderNo}_WA.pdf`;
