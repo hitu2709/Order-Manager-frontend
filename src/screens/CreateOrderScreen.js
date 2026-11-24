@@ -282,7 +282,7 @@ export default function CreateOrderScreen({ navigation, route }) {
   useEffect(() => {
     if (isEditMode && editOrder) {
       // 1. Basic pre-population (Transport, Notes)
-      setOrderNo(String(editOrder.OrderID));
+      setOrderNo(editOrder.VouchNo ? String(editOrder.VouchNo) : String(editOrder.OrderID));
       setTransport(editOrder.Transport || "");
       setNotes(editOrder.Notes || editOrder.Sp_Note || editOrder.SpNote || editOrder.notes || "");
       
@@ -605,8 +605,8 @@ export default function CreateOrderScreen({ navigation, route }) {
 
           <View style={styles.row}>
             <View style={styles.halfCol}>
-              <FieldLabel label="ORDER NUMBER" />
-              <InputField placeholder="ORD-2024-001" value={orderNo} editable={false} />
+              <FieldLabel label="VOUCH NUMBER" />
+              <InputField placeholder="Vouch No." value={orderNo} editable={false} />
             </View>
             <View style={styles.halfCol}>
               <FieldLabel label="ORDER DATE" />
