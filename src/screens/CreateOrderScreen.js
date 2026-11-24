@@ -900,6 +900,7 @@ export default function CreateOrderScreen({ navigation, route }) {
         <View style={{ height: 20 }} />
       </ScrollView>
 
+      {/* TAB BAR HIDDEN - uncomment to restore
       <View style={styles.tabBar}>
         <TouchableOpacity style={styles.tabItem} onPress={() => navigation.navigate("Dashboard")}>
           <Icon name="home" size={20} color="#90a4ae" />
@@ -910,6 +911,7 @@ export default function CreateOrderScreen({ navigation, route }) {
           <Text style={[styles.tabLabel, { color: "#0056b3" }]}>Create Order</Text>
         </TouchableOpacity>
       </View>
+      */}
 
       <SearchableDropdown 
         visible={showPartyModal}
