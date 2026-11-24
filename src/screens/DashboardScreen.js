@@ -547,7 +547,7 @@ export default function DashboardScreen({ navigation }) {
               <View style={styles.detailSummaryCard}>
                 <View style={styles.summaryTop}>
                   <View>
-                    {/* <Text style={styles.summaryOrderId}>#{String(selectedOrder.OrderID).padStart(10, '0')}</Text> */}
+                    <Text style={styles.summaryOrderId}>#{selectedOrder.VouchNo || String(selectedOrder.OrderID).padStart(10, '0')}</Text>
                     <Text style={styles.summaryCustomer}>{selectedOrder.CustomerName}</Text>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 20 }}>
